@@ -8,6 +8,11 @@ on:
         required: true
         default: false
         type: boolean
+      publish_to_release:
+        description: Publish NuGet package and smoke apps to GitHub Release
+        required: true
+        default: true
+        type: boolean
   push:
     tags:
       - "static-graphics-v*"
@@ -215,3 +220,135 @@ jobs:
               --api-key "$NUGET_API_KEY" \
               --skip-duplicate
           done
+
+  smoke-avalonia:
+    needs: pack
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            runner: windows-2022
+            msvc_arch: x64
+          - rid: win-arm64
+            runner: windows-2022
+            msvc_arch: amd64_arm64
+          - rid: linux-x64
+            runner: ubuntu-latest
+          - rid: linux-arm64
+            runner: ubuntu-24.04-arm
+          - rid: osx-x64
+            runner: macos-13
+          - rid: osx-arm64
+            runner: macos-latest
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSVC environment
+        if: ${{ startsWith(matrix.rid, 'win-') }}
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.msvc_arch }}
+
+      - name: Install Linux publish dependencies
+        if: ${{ startsWith(matrix.rid, 'linux-') }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang lld zlib1g-dev libfontconfig1-dev
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Download NuGet package
+        uses: actions/download-artifact@v4
+        with:
+          name: nuget-static-graphics
+          path: artifacts/nuget
+
+      - name: Publish Avalonia single-file smoke app
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $package = Get-ChildItem -Path "artifacts/nuget" -Filter "Shiroka.Avalonia.StaticLink.*.nupkg" | Select-Object -First 1
+          if (-not $package) { throw "StaticLink NuGet package was not downloaded." }
+          if ($package.BaseName -notmatch '^Shiroka\.Avalonia\.StaticLink\.(.+)$') { throw "Unexpected package name: $($package.Name)" }
+          $version = $Matches[1]
+          $projectDir = Join-Path $PWD "artifacts/avalonia-smoke-src"
+          pwsh ./scripts/create-avalonia-smoke.ps1 -ProjectDir $projectDir -NuGetSource (Resolve-Path "artifacts/nuget") -StaticLinkVersion $version
+          dotnet publish (Join-Path $projectDir "AvaloniaStaticLinkSmoke.csproj") `
+            -c Release `
+            -r "${{ matrix.rid }}" `
+            --configfile (Join-Path $projectDir "NuGet.config") `
+            /p:PublishAot=true `
+            /p:SelfContained=true `
+            /p:PublishSingleFile=true `
+            /p:StripSymbols=true `
+            /p:PublishDir="$PWD/artifacts/smoke-${{ matrix.rid }}/"
+
+      - name: Verify no dynamic graphics libraries remain
+        shell: pwsh
+        run: |
+          $publishDir = "artifacts/smoke-${{ matrix.rid }}"
+          $blocked = Get-ChildItem -Path $publishDir -Recurse -File | Where-Object {
+            $_.Name -in @("libSkiaSharp.dll", "libHarfBuzzSharp.dll", "av_libglesv2.dll", "libSkiaSharp.so", "libHarfBuzzSharp.so", "libSkiaSharp.dylib", "libHarfBuzzSharp.dylib")
+          }
+          if ($blocked) {
+            $blocked | ForEach-Object { Write-Error "Unexpected dynamic graphics library: $($_.FullName)" }
+            exit 1
+          }
+          Get-ChildItem -Path $publishDir -Recurse -File | ForEach-Object { $_.FullName }
+
+      - name: Upload Avalonia smoke app
+        uses: actions/upload-artifact@v4
+        with:
+          name: avalonia-smoke-${{ matrix.rid }}
+          path: artifacts/smoke-${{ matrix.rid }}/**
+          if-no-files-found: error
+
+  release:
+    runs-on: ubuntu-latest
+    needs:
+      - pack
+      - smoke-avalonia
+    if: ${{ startsWith(github.ref, 'refs/tags/static-graphics-v') || (github.event_name == 'workflow_dispatch' && inputs.publish_to_release == true) }}
+    permissions:
+      contents: write
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Prepare release files
+        run: |
+          mkdir -p release-files
+          find release-artifacts/nuget-static-graphics -type f \( -name '*.nupkg' -o -name '*.snupkg' \) -exec cp {} release-files/ \;
+          for dir in release-artifacts/avalonia-smoke-*; do
+            [ -d "$dir" ] || continue
+            name="$(basename "$dir")"
+            (cd "$dir" && zip -r "../../release-files/$name.zip" .)
+          done
+          ls -la release-files
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            release_tag="${GITHUB_REF_NAME}"
+            title="${GITHUB_REF_NAME}"
+          else
+            release_tag="static-graphics-smoke-${GITHUB_RUN_NUMBER}"
+            title="Static graphics smoke ${GITHUB_RUN_NUMBER}"
+          fi
+
+          if gh release view "$release_tag" >/dev/null 2>&1; then
+            gh release upload "$release_tag" release-files/* --clobber
+          else
+            gh release create "$release_tag" release-files/* \
+              --title "$title" \
+              --notes "NuGet package plus Avalonia 11.3.14 NativeAOT single-file smoke apps for win-x64, win-arm64, linux-x64, linux-arm64, osx-x64, and osx-arm64."
+          fi
