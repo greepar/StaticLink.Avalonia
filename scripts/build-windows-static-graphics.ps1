@@ -21,7 +21,7 @@ if (-not $env:DEPOT_TOOLS_WIN_TOOLCHAIN) {
 }
 if ($env:DEPOT_TOOLS_WIN_TOOLCHAIN -eq "0") {
     if (-not $env:GYP_MSVS_VERSION) {
-        $env:GYP_MSVS_VERSION = "2022"
+        $env:GYP_MSVS_VERSION = "17.0"
     }
     if (-not $env:GYP_MSVS_OVERRIDE_PATH) {
         if ($env:VSINSTALLDIR) {

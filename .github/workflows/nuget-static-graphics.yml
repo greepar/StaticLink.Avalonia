@@ -35,7 +35,7 @@ jobs:
       - name: Install native build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang lld llvm g++ ninja-build pkg-config libfontconfig1-dev libglib2.0-dev libpci-dev libx11-dev libxcb1-dev libxext-dev
+          sudo apt-get install -y clang lld llvm g++ ninja-build pkg-config libfontconfig1-dev libglib2.0-dev libgl1-mesa-dev libpci-dev libx11-dev libxcb1-dev libxext-dev
 
       - name: Build Linux static graphics libraries
         env:
@@ -71,6 +71,13 @@ jobs:
         with:
           arch: ${{ matrix.msvc_arch }}
 
+      - name: Configure Chromium Visual Studio environment
+        shell: pwsh
+        run: |
+          "DEPOT_TOOLS_WIN_TOOLCHAIN=0" >> $env:GITHUB_ENV
+          "GYP_MSVS_VERSION=17.0" >> $env:GITHUB_ENV
+          "GYP_MSVS_OVERRIDE_PATH=$($env:VSINSTALLDIR.TrimEnd('\', '/'))" >> $env:GITHUB_ENV
+
       - name: Install native build dependencies
         shell: pwsh
         run: |
@@ -83,6 +90,7 @@ jobs:
           RID: ${{ matrix.rid }}
           TARGET_CPU: ${{ matrix.target_cpu }}
           DEPOT_TOOLS_WIN_TOOLCHAIN: 0
+          GYP_MSVS_VERSION: 17.0
         run: .\scripts\build-windows-static-graphics.ps1 all
 
       - name: Upload Windows static archives
