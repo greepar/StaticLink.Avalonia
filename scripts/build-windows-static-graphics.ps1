@@ -71,7 +71,8 @@ function Build-Skia {
     }
 
     $outDir = Join-Path $skiaDir "out\win-static-$TargetCpu"
-    New-Item -ItemType Directory -Path $outDir, $OutputDir -Force | Out-Null
+    New-Item -ItemType Directory -Path $outDir -Force | Out-Null
+    New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
     @"
 target_os = "win"
 target_cpu = "$TargetCpu"
@@ -168,7 +169,8 @@ angle_enable_wgpu = false
     }
 }
 
-New-Item -ItemType Directory -Path $WorkDir, $OutputDir -Force | Out-Null
+New-Item -ItemType Directory -Path $WorkDir -Force | Out-Null
+New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
 switch ($Target) {
     "skia" { Build-Skia }
     "angle" { Build-Angle }
