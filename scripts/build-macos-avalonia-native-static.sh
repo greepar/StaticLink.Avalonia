@@ -21,6 +21,10 @@ if [[ ! -d "$src/.git" ]]; then
   git clone --depth 1 --branch "$AVALONIA_VERSION" https://github.com/AvaloniaUI/Avalonia.git "$src"
 fi
 
+if [[ ! -d "$src/external/Numerge/.git" ]]; then
+  git -C "$src" submodule update --init --depth 1 external/Numerge
+fi
+
 if [[ ! -f "$src/native/Avalonia.Native/inc/avalonia-native.h" ]]; then
   bash "$src/native/Avalonia.Native/generate-headers.sh"
 fi
