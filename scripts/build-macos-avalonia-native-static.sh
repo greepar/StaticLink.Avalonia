@@ -22,6 +22,7 @@ if [[ ! -d "$src/.git" ]]; then
 fi
 
 project="$src/native/Avalonia.Native/src/OSX/Avalonia.Native.OSX.xcodeproj"
+include_dir="$src/native/Avalonia.Native/inc"
 build_dir="$WORK_DIR/avalonia-native-$RID"
 rm -rf "$build_dir"
 mkdir -p "$build_dir"
@@ -39,6 +40,7 @@ xcodebuild \
   EXECUTABLE_PREFIX=lib \
   EXECUTABLE_EXTENSION=a \
   PRODUCT_NAME=AvaloniaNative \
+  HEADER_SEARCH_PATHS="$include_dir" \
   CLANG_ENABLE_MODULES=YES \
   GCC_GENERATE_DEBUGGING_SYMBOLS=NO \
   -jobs "$BUILD_JOBS"
