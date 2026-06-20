@@ -106,7 +106,7 @@ extra_cflags = [ "-DSKIA_C_DLL" ]
 extra_cflags_cc = [ "-frtti" ]
 EOF_ARGS
 
-  "$skia_dir/bin/gn" gen "$out_dir"
+  (cd "$skia_dir" && "$skia_dir/bin/gn" gen "$out_dir")
   ninja -C "$out_dir" -j "$BUILD_JOBS" skia SkiaSharp HarfBuzzSharp
   copy_first_existing "$OUTPUT_DIR/libskia.a" "$out_dir/libskia.a" "$out_dir/obj/libskia.a"
   copy_first_existing "$OUTPUT_DIR/libSkiaSharp.a" "$out_dir/libSkiaSharp.a" "$out_dir/obj/libSkiaSharp.a"

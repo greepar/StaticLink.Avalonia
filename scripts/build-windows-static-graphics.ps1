@@ -45,7 +45,7 @@ function Copy-FirstExisting($Destination, [string[]]$Candidates) {
             return
         }
     }
-    throw "None of the expected files exist for $Destination: $($Candidates -join ', ')"
+    throw "None of the expected files exist for ${Destination}: $($Candidates -join ', ')"
 }
 
 function Sync-SkiaSharp {
@@ -100,8 +100,13 @@ extra_cflags = [ "-DSKIA_C_DLL" ]
 extra_cflags_cc = [ "/GR" ]
 "@ | Set-Content -Path (Join-Path $outDir "args.gn") -Encoding ASCII
 
-    & (Join-Path $skiaDir "bin\gn.exe") gen $outDir
-    ninja -C $outDir -j $BuildJobs skia SkiaSharp HarfBuzzSharp
+    Push-Location $skiaDir
+    try {
+        & (Join-Path $skiaDir "bin\gn.exe") gen $outDir
+        ninja -C $outDir -j $BuildJobs skia SkiaSharp HarfBuzzSharp
+    } finally {
+        Pop-Location
+    }
 
     Copy-FirstExisting (Join-Path $OutputDir "skia.lib") @((Join-Path $outDir "skia.lib"), (Join-Path $outDir "obj\skia.lib"))
     Copy-FirstExisting (Join-Path $OutputDir "SkiaSharp.lib") @((Join-Path $outDir "SkiaSharp.lib"), (Join-Path $outDir "obj\SkiaSharp.lib"))
