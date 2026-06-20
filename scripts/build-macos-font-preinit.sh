@@ -15,6 +15,8 @@ mkdir -p "$OUTPUT_DIR"
 src="$OUTPUT_DIR/macos_font_preinit.m"
 cat > "$src" <<'OBJC'
 #import <AppKit/AppKit.h>
+#import <objc/message.h>
+#import <objc/runtime.h>
 
 __attribute__((constructor(101)))
 static void ShirokaAvaloniaStaticLinkPreinitializeAppKitFonts(void)
@@ -23,7 +25,7 @@ static void ShirokaAvaloniaStaticLinkPreinitializeAppKitFonts(void)
     {
         [NSApplication sharedApplication];
         [NSFont systemFontOfSize:13.0];
-        [NSFont systemFontOfSize:13.0 width:0.0];
+        ((id (*)(id, SEL, CGFloat, CGFloat))objc_msgSend)([NSFont class], sel_registerName("systemFontOfSize:width:"), 13.0, 0.0);
     }
 }
 OBJC
