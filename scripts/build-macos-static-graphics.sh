@@ -10,6 +10,7 @@ SKIASHARP_VERSION="${SKIASHARP_VERSION:-3.119.2}"
 ANGLE_BRANCH="${ANGLE_BRANCH:-7151}"
 BUILD_JOBS="${BUILD_JOBS:-$(sysctl -n hw.ncpu)}"
 ANGLE_PATCH_DIR="${ANGLE_PATCH_DIR:-$ROOT_DIR/External/NativeStatic/patches}"
+SKIA_DEPS_RETRIES="${SKIA_DEPS_RETRIES:-3}"
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -64,6 +65,38 @@ sync_skiasharp() {
   echo "$src"
 }
 
+prepare_skia_git_sync_deps() {
+  local sync_deps="$1/tools/git-sync-deps"
+  python3 - "$sync_deps" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+old = "  multithread(git_checkout_to_directory, list_of_arg_lists)"
+new = "  for args in list_of_arg_lists:\n    git_checkout_to_directory(*args)"
+if old in text:
+    path.write_text(text.replace(old, new))
+PY
+}
+
+sync_skia_deps() {
+  local skia_dir="$1"
+  prepare_skia_git_sync_deps "$skia_dir"
+
+  local attempt
+  for attempt in $(seq 1 "$SKIA_DEPS_RETRIES"); do
+    if python3 "$skia_dir/tools/git-sync-deps"; then
+      return 0
+    fi
+    if [[ "$attempt" == "$SKIA_DEPS_RETRIES" ]]; then
+      return 1
+    fi
+    echo "git-sync-deps failed; retrying ($attempt/$SKIA_DEPS_RETRIES)..." >&2
+    sleep 10
+  done
+}
+
 build_skia() {
   ensure_tools
   ensure_depot_tools
@@ -71,7 +104,7 @@ build_skia() {
   src="$(sync_skiasharp)"
   local skia_dir="$src/externals/skia"
   if [[ ! -x "$skia_dir/bin/gn" ]]; then
-    python3 "$skia_dir/tools/git-sync-deps"
+    sync_skia_deps "$skia_dir"
   fi
 
   local out_dir="$skia_dir/out/mac-static-$TARGET_CPU"

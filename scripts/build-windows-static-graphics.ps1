@@ -14,6 +14,7 @@ $Rid = if ($env:RID) { $env:RID } else { "win-$TargetCpu" }
 $OutputDir = if ($env:OUTPUT_DIR) { $env:OUTPUT_DIR } else { Join-Path $RootDir "External\NativeStatic\$Rid" }
 $BuildJobs = if ($env:BUILD_JOBS) { $env:BUILD_JOBS } else { [Environment]::ProcessorCount }
 $AnglePatchDir = if ($env:ANGLE_PATCH_DIR) { $env:ANGLE_PATCH_DIR } else { Join-Path $RootDir "External\NativeStatic\patches" }
+$SkiaDepsRetries = if ($env:SKIA_DEPS_RETRIES) { [int]$env:SKIA_DEPS_RETRIES } else { 3 }
 
 function Require-Command($Name) {
     if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
@@ -61,13 +62,39 @@ function Sync-SkiaSharp {
     return $src
 }
 
+function Prepare-SkiaGitSyncDeps($SkiaDir) {
+    $syncDeps = Join-Path $SkiaDir "tools\git-sync-deps"
+    $text = Get-Content -Path $syncDeps -Raw
+    $old = "  multithread(git_checkout_to_directory, list_of_arg_lists)"
+    $new = "  for args in list_of_arg_lists:`n    git_checkout_to_directory(*args)"
+    if ($text.Contains($old)) {
+        Set-Content -Path $syncDeps -Value $text.Replace($old, $new) -NoNewline -Encoding UTF8
+    }
+}
+
+function Invoke-SkiaGitSyncDeps($SkiaDir) {
+    Prepare-SkiaGitSyncDeps $SkiaDir
+
+    for ($attempt = 1; $attempt -le $SkiaDepsRetries; $attempt++) {
+        python (Join-Path $SkiaDir "tools\git-sync-deps")
+        if ($LASTEXITCODE -eq 0) {
+            return
+        }
+        if ($attempt -eq $SkiaDepsRetries) {
+            throw "git-sync-deps failed after $SkiaDepsRetries attempts"
+        }
+        Write-Warning "git-sync-deps failed; retrying ($attempt/$SkiaDepsRetries)..."
+        Start-Sleep -Seconds 10
+    }
+}
+
 function Build-Skia {
     Ensure-Tools
     Ensure-DepotTools
     $src = Sync-SkiaSharp
     $skiaDir = Join-Path $src "externals\skia"
     if (-not (Test-Path (Join-Path $skiaDir "bin\gn.exe"))) {
-        python (Join-Path $skiaDir "tools\git-sync-deps")
+        Invoke-SkiaGitSyncDeps $skiaDir
     }
 
     $outDir = Join-Path $skiaDir "out\win-static-$TargetCpu"
