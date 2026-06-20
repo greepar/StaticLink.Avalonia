@@ -183,8 +183,30 @@ function Sync-Angle {
 }
 
 function Apply-AnglePatches($Src) {
+    $buildFile = Join-Path $Src "BUILD.gn"
+    $buildText = Get-Content -Path $buildFile -Raw
+    if (-not $buildText.Contains('angle_static_library("libANGLE_static")')) {
+        $libAngleTargets = @'
+angle_static_library("libANGLE_static") {
+  complete_static_lib = true
+  public_deps = [ ":libANGLE" ]
+}
+
+angle_static_library("libANGLE_with_capture_static") {
+  complete_static_lib = true
+  public_deps = [ ":libANGLE_with_capture" ]
+}
+
+angle_static_library("libGLESv2_static") {
+'@
+        $buildText = [regex]::Replace($buildText, '(?m)^angle_static_library\("libGLESv2_static"\) \{', $libAngleTargets)
+        $buildText = [regex]::Replace($buildText, '(?m)^angle_static_library\("libGLESv2_static"\) \{\r?\n  sources = libglesv2_sources', "angle_static_library(`"libGLESv2_static`") {`n  complete_static_lib = true`n  sources = libglesv2_sources")
+        Set-Content -Path $buildFile -Value $buildText -NoNewline -Encoding UTF8
+    }
+
     $patch = Join-Path $AnglePatchDir "angle-chromium-$AngleBranch.patch"
-    if ((Test-Path $patch) -and -not (Select-String -Path (Join-Path $Src "BUILD.gn") -Pattern 'angle_static_library\("libANGLE_static"\)' -Quiet)) {
+    $depsFile = Join-Path $Src "DEPS"
+    if ((Test-Path $patch) -and (Select-String -Path $depsFile -Pattern "'third_party/catapult'" -Quiet)) {
         $null = git -C $Src apply $patch
         if ($LASTEXITCODE -ne 0) {
             throw "Failed to apply ANGLE patch: $patch"
@@ -206,17 +228,9 @@ function Test-AnglePatch {
     Assert-AngleVisualStudioVersion
 
     $src = Sync-Angle
-    $patch = Join-Path $AnglePatchDir "angle-chromium-$AngleBranch.patch"
-    if (-not (Test-Path $patch)) {
-        return
-    }
-    if (Select-String -Path (Join-Path $src "BUILD.gn") -Pattern 'angle_static_library\("libANGLE_static"\)' -Quiet) {
-        return
-    }
-
-    $null = git -C $src apply --check $patch
-    if ($LASTEXITCODE -ne 0) {
-        throw "ANGLE patch does not apply: $patch"
+    Apply-AnglePatches $src
+    if (-not (Select-String -Path (Join-Path $src "BUILD.gn") -Pattern 'angle_static_library\("libANGLE_static"\)' -Quiet)) {
+        throw "ANGLE BUILD.gn preflight failed."
     }
     Write-Host "ANGLE preflight passed."
 }
