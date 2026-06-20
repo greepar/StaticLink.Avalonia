@@ -21,6 +21,10 @@ if [[ ! -d "$src/.git" ]]; then
   git clone --depth 1 --branch "$AVALONIA_VERSION" https://github.com/AvaloniaUI/Avalonia.git "$src"
 fi
 
+if [[ ! -f "$src/native/Avalonia.Native/inc/avalonia-native.h" ]]; then
+  bash "$src/native/Avalonia.Native/generate-headers.sh"
+fi
+
 project="$src/native/Avalonia.Native/src/OSX/Avalonia.Native.OSX.xcodeproj"
 include_dir="$src/native/Avalonia.Native/inc"
 build_dir="$WORK_DIR/avalonia-native-$RID"
