@@ -20,6 +20,8 @@
         <NativeLibrary Include="$(_ShirokaAvaloniaStaticLinkNativeRoot)/SkiaSharp.lib" Condition="Exists('$(_ShirokaAvaloniaStaticLinkNativeRoot)/SkiaSharp.lib')" />
         <NativeLibrary Include="$(_ShirokaAvaloniaStaticLinkNativeRoot)/libANGLE_static.lib" Condition="Exists('$(_ShirokaAvaloniaStaticLinkNativeRoot)/libANGLE_static.lib')" />
         <NativeLibrary Include="$(_ShirokaAvaloniaStaticLinkNativeRoot)/libGLESv2_static.lib" Condition="Exists('$(_ShirokaAvaloniaStaticLinkNativeRoot)/libGLESv2_static.lib')" />
+        <NativeLibrary Include="$(_ShirokaAvaloniaStaticLinkNativeRoot)/libc++.lib" Condition="Exists('$(_ShirokaAvaloniaStaticLinkNativeRoot)/libc++.lib')" />
+        <NativeLibrary Include="$(_ShirokaAvaloniaStaticLinkNativeRoot)/libc++abi.lib" Condition="Exists('$(_ShirokaAvaloniaStaticLinkNativeRoot)/libc++abi.lib')" />
         <LinkerArg Include="d3d9.lib;dxguid.lib" />
         <LinkerArg Include="dxgi.lib" />
         <LinkerArg Include="Gdi32.lib;User32.lib" />

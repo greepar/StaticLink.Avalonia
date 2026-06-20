@@ -255,6 +255,7 @@ is_debug = false
 is_component_build = false
 is_clang = true
 use_lld = false
+use_custom_libcxx = false
 use_thin_lto = false
 symbol_level = 0
 angle_build_tests = false
@@ -267,6 +268,13 @@ angle_enable_wgpu = false
         ninja -C $outDir -j $BuildJobs libANGLE_static libGLESv2_static
         Copy-FirstExisting (Join-Path $OutputDir "libANGLE_static.lib") @((Join-Path $outDir "libANGLE_static.lib"), (Join-Path $outDir "obj\libANGLE_static.lib"), (Join-Path $outDir "obj\libANGLE_static\libANGLE_static.lib"))
         Copy-FirstExisting (Join-Path $OutputDir "libGLESv2_static.lib") @((Join-Path $outDir "libGLESv2_static.lib"), (Join-Path $outDir "obj\libGLESv2_static.lib"), (Join-Path $outDir "obj\libGLESv2_static\libGLESv2_static.lib"))
+        foreach ($libcxxName in @("libc++.lib", "libc++abi.lib")) {
+            $libcxxPath = Join-Path $src "third_party\llvm-build\Release+Asserts\lib\$libcxxName"
+            if (Test-Path $libcxxPath) {
+                Copy-Item $libcxxPath (Join-Path $OutputDir $libcxxName) -Force
+                Write-Host "Wrote $(Join-Path $OutputDir $libcxxName)"
+            }
+        }
     } finally {
         Pop-Location
     }
