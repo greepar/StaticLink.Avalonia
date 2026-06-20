@@ -160,7 +160,34 @@ sync_angle() {
 apply_angle_patches() {
   local src="$1"
   local patch="$ANGLE_PATCH_DIR/angle-chromium-$ANGLE_BRANCH.patch"
-  if [[ -f "$patch" ]] && ! git -C "$src" grep -q 'angle_static_library("libANGLE_static")' -- BUILD.gn; then
+
+  if ! git -C "$src" grep -q 'angle_static_library("libANGLE_static")' -- BUILD.gn; then
+    python3 - "$src/BUILD.gn" <<'PY'
+import pathlib
+import re
+import sys
+
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+targets = '''angle_static_library("libANGLE_static") {
+  complete_static_lib = true
+  public_deps = [ ":libANGLE" ]
+}
+
+angle_static_library("libANGLE_with_capture_static") {
+  complete_static_lib = true
+  public_deps = [ ":libANGLE_with_capture" ]
+}
+
+angle_static_library("libGLESv2_static") {
+'''
+text = re.sub(r'^angle_static_library\("libGLESv2_static"\) \{', targets, text, count=1, flags=re.M)
+text = re.sub(r'^angle_static_library\("libGLESv2_static"\) \{\n  sources = libglesv2_sources', 'angle_static_library("libGLESv2_static") {\n  complete_static_lib = true\n  sources = libglesv2_sources', text, count=1, flags=re.M)
+path.write_text(text)
+PY
+  fi
+
+  if [[ -f "$patch" ]] && git -C "$src" grep -q "'third_party/catapult'" -- DEPS; then
     git -C "$src" apply "$patch"
   fi
 }
