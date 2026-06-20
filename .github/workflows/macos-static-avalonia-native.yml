@@ -163,6 +163,45 @@ jobs:
           }
           Get-ChildItem -Path $publishDir -Recurse -File | ForEach-Object { $_.FullName }
 
+      - name: Run Avalonia smoke app
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "artifacts/smoke-${{ matrix.rid }}"
+          chmod +x ./AvaloniaStaticLinkSmoke
+          python3 - <<'PY'
+          import pathlib
+          import subprocess
+          import sys
+
+          log = pathlib.Path("avalonia-smoke-run.log")
+          proc = subprocess.Popen(
+              ["./AvaloniaStaticLinkSmoke"],
+              stdout=subprocess.PIPE,
+              stderr=subprocess.STDOUT,
+              text=True,
+          )
+
+          try:
+              output, _ = proc.communicate(timeout=15)
+          except subprocess.TimeoutExpired:
+              proc.kill()
+              output, _ = proc.communicate()
+              log.write_text(output or "")
+              print(output or "")
+              print("Avalonia smoke app stayed alive for 15 seconds.")
+              sys.exit(0)
+
+          log.write_text(output or "")
+          print(output or "")
+          if proc.returncode == 0:
+              print("Avalonia smoke app exited normally.")
+              sys.exit(0)
+
+          print(f"Avalonia smoke app failed with exit code {proc.returncode}.", file=sys.stderr)
+          sys.exit(proc.returncode if proc.returncode > 0 else 1)
+          PY
+
       - name: Upload macOS smoke app
         uses: actions/upload-artifact@v4
         with:
