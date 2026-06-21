@@ -2,7 +2,7 @@ using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace StaticLink.Avalonia;
+namespace StaticLink.Avalonia.Native;
 
 internal static class MacOSFontWarmup
 {
@@ -29,7 +29,7 @@ internal static class MacOSFontWarmup
         }
         catch
         {
-            // Never fail application startup from the defensive macOS font-cache warmup.
+            // Defensive AppKit font-cache warmup must never fail application startup.
         }
     }
 

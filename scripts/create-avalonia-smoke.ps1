@@ -6,12 +6,21 @@ param(
     [string]$NuGetSource,
 
     [Parameter(Mandatory = $true)]
-    [string]$StaticLinkVersion
+    [string]$StaticLinkVersion,
+
+    [string]$AvaloniaVersion = "11.3.14",
+
+    [string]$StaticLinkNativeVersion = ""
 )
 
 $ErrorActionPreference = "Stop"
 
 New-Item -ItemType Directory -Path $ProjectDir -Force | Out-Null
+
+$nativeReference = ""
+if ($StaticLinkNativeVersion) {
+    $nativeReference = "`n    <PackageReference Include=`"StaticLink.Avalonia.Native`" Version=`"$StaticLinkNativeVersion`" />"
+}
 
 @"
 <?xml version="1.0" encoding="utf-8"?>
@@ -41,10 +50,10 @@ New-Item -ItemType Directory -Path $ProjectDir -Force | Out-Null
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Avalonia" Version="11.3.14" />
-    <PackageReference Include="Avalonia.Desktop" Version="11.3.14" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.14" />
-    <PackageReference Include="StaticLink.Avalonia" Version="$StaticLinkVersion" />
+    <PackageReference Include="Avalonia" Version="$AvaloniaVersion" />
+    <PackageReference Include="Avalonia.Desktop" Version="$AvaloniaVersion" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="$AvaloniaVersion" />
+    <PackageReference Include="StaticLink.Avalonia" Version="$StaticLinkVersion" />$nativeReference
   </ItemGroup>
 </Project>
 "@ | Set-Content -Path (Join-Path $ProjectDir "AvaloniaStaticLinkSmoke.csproj") -Encoding UTF8
@@ -137,7 +146,7 @@ public sealed partial class MainWindow : Window
         Title="Avalonia StaticLink Smoke">
   <Border Padding="24">
     <StackPanel Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center">
-      <TextBlock Text="Avalonia 11.3.14" FontSize="24" FontWeight="SemiBold" HorizontalAlignment="Center" />
+      <TextBlock Text="Avalonia $AvaloniaVersion" FontSize="24" FontWeight="SemiBold" HorizontalAlignment="Center" />
       <TextBlock Text="StaticLink NativeAOT smoke publish" HorizontalAlignment="Center" />
     </StackPanel>
   </Border>

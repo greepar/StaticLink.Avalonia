@@ -21,6 +21,12 @@ Repository: <https://github.com/greepar/StaticLink.Avalonia>
 dotnet add package StaticLink.Avalonia
 ```
 
+For fully static macOS output, also reference the AvaloniaNative package that matches your Avalonia version:
+
+```bash
+dotnet add package StaticLink.Avalonia.Native --version 11.3.14.1
+```
+
 ## Publish
 
 ```bash
@@ -56,6 +62,7 @@ For macOS, avoid the Metal renderer for fully static output. Use OpenGL or Softw
 ## Notes
 
 - The package is intended for Avalonia `11.3.x` NativeAOT apps.
+- `StaticLink.Avalonia.Native` is version-specific because `libAvaloniaNative.a` must match Avalonia's native ABI.
 - The CI builds and smoke-publishes all six supported RIDs.
 - macOS smoke tests run the published app on GitHub Actions and require it to stay alive for 15 seconds.
 - Other native dependencies used by your app, such as SQLite or audio libraries, are outside this package's scope.

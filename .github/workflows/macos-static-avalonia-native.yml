@@ -98,6 +98,11 @@ jobs:
             -o artifacts/nuget \
             /p:PackageVersion=${{ steps.version.outputs.package_version }} \
             /p:Version=${{ steps.version.outputs.package_version }}
+          dotnet pack NuGet/AvaloniaNative/StaticLink.Avalonia.Native.csproj \
+            -c Release \
+            -o artifacts/nuget \
+            /p:PackageVersion=11.3.14-macavn.${{ github.run_number }} \
+            /p:Version=11.3.14-macavn.${{ github.run_number }}
 
       - name: Upload experimental NuGet package
         uses: actions/upload-artifact@v4
@@ -136,10 +141,15 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $projectDir = Join-Path $PWD "artifacts/avalonia-smoke-src"
+          $nativePackage = Get-ChildItem -Path "artifacts/nuget" -Filter "StaticLink.Avalonia.Native.*.nupkg" | Select-Object -First 1
+          if (-not $nativePackage) { throw "StaticLink AvaloniaNative NuGet package was not downloaded." }
+          if ($nativePackage.BaseName -notmatch '^StaticLink\.Avalonia\.Native\.(.+)$') { throw "Unexpected native package name: $($nativePackage.Name)" }
+          $nativeVersion = $Matches[1]
           pwsh ./scripts/create-avalonia-smoke.ps1 `
             -ProjectDir $projectDir `
             -NuGetSource (Resolve-Path "artifacts/nuget") `
-            -StaticLinkVersion "${{ needs.pack-experimental.outputs.package_version }}"
+            -StaticLinkVersion "${{ needs.pack-experimental.outputs.package_version }}" `
+            -StaticLinkNativeVersion $nativeVersion
           dotnet publish (Join-Path $projectDir "AvaloniaStaticLinkSmoke.csproj") `
             -c Release `
             -r "${{ matrix.rid }}" `
