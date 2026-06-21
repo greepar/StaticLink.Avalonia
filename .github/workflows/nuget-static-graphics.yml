@@ -235,6 +235,10 @@ jobs:
             mkdir -p "External/NativeStatic/$rid"
             mv "External/NativeStatic/native-static-$rid"/* "External/NativeStatic/$rid/"
             rmdir "External/NativeStatic/native-static-$rid"
+            if [ ! -d "External/NativeStatic/$rid/native" ]; then
+              mkdir -p "External/NativeStatic/$rid/native"
+              find "External/NativeStatic/$rid" -maxdepth 1 -type f -exec mv {} "External/NativeStatic/$rid/native/" \;
+            fi
           done
 
       - name: Verify static archives
