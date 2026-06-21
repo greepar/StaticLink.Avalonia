@@ -64,6 +64,9 @@ jobs:
           - rid: win-x64
             target_cpu: x64
             msvc_arch: x64
+          - rid: win-x86
+            target_cpu: x86
+            msvc_arch: x86
           - rid: win-arm64
             target_cpu: arm64
             msvc_arch: amd64_arm64
@@ -231,7 +234,7 @@ jobs:
 
       - name: Move static archives into RID directories
         run: |
-          for rid in win-x64 win-arm64 linux-x64 linux-arm64 osx-x64 osx-arm64; do
+          for rid in win-x64 win-x86 win-arm64 linux-x64 linux-arm64 osx-x64 osx-arm64; do
             mkdir -p "External/NativeStatic/$rid"
             mv "External/NativeStatic/native-static-$rid"/* "External/NativeStatic/$rid/"
             rmdir "External/NativeStatic/native-static-$rid"
@@ -251,7 +254,7 @@ jobs:
             test -f External/NativeStatic/$rid/native/libGLESv2_static.a
           done
 
-          for rid in win-x64 win-arm64; do
+          for rid in win-x64 win-x86 win-arm64; do
             test -f External/NativeStatic/$rid/native/skia.lib
             test -f External/NativeStatic/$rid/native/SkiaSharp.lib
             test -f External/NativeStatic/$rid/native/libHarfBuzzSharp.lib
@@ -308,6 +311,9 @@ jobs:
           - rid: win-x64
             runner: windows-2022
             msvc_arch: x64
+          - rid: win-x86
+            runner: windows-2022
+            msvc_arch: x86
           - rid: win-arm64
             runner: windows-2022
             msvc_arch: amd64_arm64

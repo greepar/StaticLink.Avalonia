@@ -28,6 +28,7 @@
         <None Include="buildTransitive/StaticLink.Avalonia.props" Pack="true" PackagePath="buildTransitive/$(PackageId).props" />
         <None Include="buildTransitive/StaticLink.Avalonia.targets" Pack="true" PackagePath="buildTransitive/$(PackageId).targets" />
         <None Include="../../External/NativeStatic/win-x64/native/**/*" Pack="true" PackagePath="static/win-x64/native/%(RecursiveDir)%(Filename)%(Extension)" />
+        <None Include="../../External/NativeStatic/win-x86/native/**/*" Pack="true" PackagePath="static/win-x86/native/%(RecursiveDir)%(Filename)%(Extension)" />
         <None Include="../../External/NativeStatic/win-arm64/native/**/*" Pack="true" PackagePath="static/win-arm64/native/%(RecursiveDir)%(Filename)%(Extension)" />
         <None Include="../../External/NativeStatic/linux-x64/native/**/*" Pack="true" PackagePath="static/linux-x64/native/%(RecursiveDir)%(Filename)%(Extension)" />
         <None Include="../../External/NativeStatic/linux-arm64/native/**/*" Pack="true" PackagePath="static/linux-arm64/native/%(RecursiveDir)%(Filename)%(Extension)" />
