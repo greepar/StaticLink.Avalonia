@@ -21,7 +21,7 @@ if [[ ! -d "$src/.git" ]]; then
   git clone --depth 1 --branch "$AVALONIA_VERSION" https://github.com/AvaloniaUI/Avalonia.git "$src"
 fi
 
-if [[ ! -d "$src/external/Numerge/.git" ]]; then
+if git -C "$src" config -f .gitmodules --get-regexp path | grep -q 'external/Numerge' && [[ ! -d "$src/external/Numerge/.git" ]]; then
   git -C "$src" submodule update --init --depth 1 external/Numerge
 fi
 
