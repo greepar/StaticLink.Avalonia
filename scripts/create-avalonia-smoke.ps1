@@ -60,9 +60,21 @@ internal static class Program
     public static void Main(string[] args) => BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
 
     public static AppBuilder BuildAvaloniaApp()
-        => AppBuilder.Configure<App>()
+    {
+        var builder = AppBuilder.Configure<App>()
             .UsePlatformDetect()
             .LogToTrace();
+
+        if (OperatingSystem.IsMacOS())
+        {
+            builder = builder.With(new AvaloniaNativePlatformOptions
+            {
+                RenderingMode = [AvaloniaNativeRenderingMode.Software]
+            });
+        }
+
+        return builder;
+    }
 }
 "@ | Set-Content -Path (Join-Path $ProjectDir "Program.cs") -Encoding UTF8
 
