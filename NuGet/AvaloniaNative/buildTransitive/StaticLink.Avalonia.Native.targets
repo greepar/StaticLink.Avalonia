@@ -18,6 +18,8 @@
         <LinkerArg Include="-framework CoreFoundation" />
         <LinkerArg Include="-framework CoreGraphics" />
         <LinkerArg Include="-framework Foundation" />
+        <LinkerArg Include="-framework IOSurface" />
+        <LinkerArg Include="-framework Metal" />
         <LinkerArg Include="-framework OpenGL" />
         <LinkerArg Include="-framework QuartzCore" />
         <LinkerArg Include="-framework UniformTypeIdentifiers" />
