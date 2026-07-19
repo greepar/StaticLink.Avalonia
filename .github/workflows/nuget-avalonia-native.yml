@@ -1,0 +1,278 @@
+name: staticlink-avalonia-native
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      avalonia_version:
+        description: Avalonia version to build; empty uses the latest stable NuGet version
+        required: false
+        type: string
+      force_build:
+        description: Build even when this StaticLink.Avalonia.Native version already exists
+        required: true
+        default: false
+        type: boolean
+      publish_to_nuget:
+        description: Publish with NuGet Trusted Publishing after smoke tests
+        required: true
+        default: true
+        type: boolean
+
+concurrency:
+  group: staticlink-avalonia-native
+  cancel-in-progress: false
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      avalonia_version: ${{ steps.version.outputs.avalonia_version }}
+      package_version: ${{ steps.version.outputs.package_version }}
+      should_build: ${{ steps.version.outputs.should_build }}
+    steps:
+      - name: Detect unpublished Avalonia version
+        id: version
+        shell: bash
+        env:
+          REQUESTED_VERSION: ${{ inputs.avalonia_version }}
+          FORCE_BUILD: ${{ inputs.force_build }}
+        run: |
+          set -euo pipefail
+
+          avalonia_version="$REQUESTED_VERSION"
+          if [ -z "$avalonia_version" ]; then
+            avalonia_version="$(curl --fail --silent --show-error --location \
+              https://api.nuget.org/v3-flatcontainer/avalonia/index.json \
+              | jq -r '[.versions[] | select(contains("-") | not)] | last')"
+          fi
+
+          if [ -z "$avalonia_version" ] || [ "$avalonia_version" = "null" ]; then
+            echo "Could not determine the latest stable Avalonia version." >&2
+            exit 1
+          fi
+
+          package_version="$avalonia_version.1"
+          package_url="https://api.nuget.org/v3-flatcontainer/staticlink.avalonia.native/$package_version/staticlink.avalonia.native.$package_version.nupkg"
+          should_build=true
+          if [ "$FORCE_BUILD" != "true" ] && curl --fail --silent --location --output /dev/null "$package_url"; then
+            should_build=false
+          fi
+
+          echo "Avalonia version: $avalonia_version"
+          echo "StaticLink.Avalonia.Native version: $package_version"
+          echo "Build required: $should_build"
+          echo "avalonia_version=$avalonia_version" >> "$GITHUB_OUTPUT"
+          echo "package_version=$package_version" >> "$GITHUB_OUTPUT"
+          echo "should_build=$should_build" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: detect
+    if: ${{ needs.detect.outputs.should_build == 'true' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: osx-x64
+            runner: macos-14
+          - rid: osx-arm64
+            runner: macos-15
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    env:
+      RID: ${{ matrix.rid }}
+      AVALONIA_VERSION: ${{ needs.detect.outputs.avalonia_version }}
+      WORK_DIR: ${{ github.workspace }}/External/AvaloniaNative/.work
+      OUTPUT_DIR: ${{ github.workspace }}/External/AvaloniaNative/${{ matrix.rid }}/native
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET for Avalonia header generation
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Build static AvaloniaNative
+        run: bash scripts/build-macos-avalonia-native-static.sh
+
+      - name: Build macOS font preinit object
+        run: bash scripts/build-macos-font-preinit.sh
+
+      - name: Upload static AvaloniaNative
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-avalonia-${{ matrix.rid }}
+          path: |
+            External/AvaloniaNative/${{ matrix.rid }}/native/libAvaloniaNative.a
+            External/AvaloniaNative/${{ matrix.rid }}/native/macos_font_preinit.o
+          if-no-files-found: error
+
+  pack:
+    needs:
+      - detect
+      - build
+    if: ${{ needs.detect.outputs.should_build == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Download static AvaloniaNative archives
+        uses: actions/download-artifact@v4
+        with:
+          pattern: native-avalonia-*
+          path: artifacts/native
+          merge-multiple: false
+
+      - name: Prepare package inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          for rid in osx-x64 osx-arm64; do
+            mkdir -p "External/AvaloniaNative/$rid/native"
+            cp "artifacts/native/native-avalonia-$rid/libAvaloniaNative.a" "External/AvaloniaNative/$rid/native/"
+            cp "artifacts/native/native-avalonia-$rid/macos_font_preinit.o" "External/AvaloniaNative/$rid/native/"
+          done
+
+      - name: Pack StaticLink.Avalonia.Native
+        run: |
+          dotnet pack NuGet/AvaloniaNative/StaticLink.Avalonia.Native.csproj \
+            -c Release \
+            -o artifacts/nuget \
+            /p:PackageVersion=${{ needs.detect.outputs.package_version }} \
+            /p:Version=${{ needs.detect.outputs.package_version }}
+
+      - name: Upload NuGet package
+        uses: actions/upload-artifact@v4
+        with:
+          name: staticlink-avalonia-native-${{ needs.detect.outputs.package_version }}
+          path: artifacts/nuget/*.nupkg
+          if-no-files-found: error
+
+  smoke:
+    needs:
+      - detect
+      - pack
+    if: ${{ needs.detect.outputs.should_build == 'true' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: osx-x64
+            runner: macos-14
+          - rid: osx-arm64
+            runner: macos-15
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Download NuGet package
+        uses: actions/download-artifact@v4
+        with:
+          name: staticlink-avalonia-native-${{ needs.detect.outputs.package_version }}
+          path: artifacts/nuget
+
+      - name: Publish Avalonia NativeAOT smoke app
+        shell: pwsh
+        run: |
+          $projectDir = Join-Path $PWD "artifacts/avalonia-native-smoke-src"
+          pwsh ./scripts/create-avalonia-smoke.ps1 `
+            -ProjectDir $projectDir `
+            -NuGetSource (Resolve-Path "artifacts/nuget") `
+            -AvaloniaVersion "${{ needs.detect.outputs.avalonia_version }}" `
+            -StaticLinkNativeVersion "${{ needs.detect.outputs.package_version }}"
+          dotnet publish (Join-Path $projectDir "AvaloniaStaticLinkSmoke.csproj") `
+            -c Release `
+            -r "${{ matrix.rid }}" `
+            --configfile (Join-Path $projectDir "NuGet.config") `
+            /p:PublishDir="$PWD/artifacts/smoke-${{ matrix.rid }}/"
+
+      - name: Verify AvaloniaNative is statically linked
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -f "artifacts/smoke-${{ matrix.rid }}/libAvaloniaNative.dylib"
+          test -x "artifacts/smoke-${{ matrix.rid }}/AvaloniaStaticLinkSmoke"
+
+      - name: Run Avalonia smoke app
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "artifacts/smoke-${{ matrix.rid }}"
+          python3 - <<'PY'
+          import subprocess
+          import sys
+
+          proc = subprocess.Popen(
+              ["./AvaloniaStaticLinkSmoke"],
+              stdout=subprocess.PIPE,
+              stderr=subprocess.STDOUT,
+              text=True,
+          )
+          try:
+              output, _ = proc.communicate(timeout=15)
+          except subprocess.TimeoutExpired:
+              proc.kill()
+              output, _ = proc.communicate()
+              print(output or "")
+              print("Avalonia smoke app stayed alive for 15 seconds.")
+              sys.exit(0)
+
+          print(output or "")
+          if proc.returncode == 0:
+              sys.exit(0)
+          sys.exit(proc.returncode if proc.returncode > 0 else 1)
+          PY
+
+  publish:
+    needs:
+      - detect
+      - smoke
+    if: ${{ needs.detect.outputs.should_build == 'true' && (github.event_name == 'schedule' || inputs.publish_to_nuget == true) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Download NuGet package
+        uses: actions/download-artifact@v4
+        with:
+          name: staticlink-avalonia-native-${{ needs.detect.outputs.package_version }}
+          path: artifacts/nuget
+
+      - name: Validate Trusted Publishing configuration
+        env:
+          NUGET_USER: ${{ vars.NUGET_USER }}
+        run: test -n "$NUGET_USER"
+
+      - name: NuGet login
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ vars.NUGET_USER }}
+
+      - name: Publish to nuget.org
+        run: |
+          dotnet nuget push artifacts/nuget/*.nupkg \
+            --source https://www.nuget.org/api/v2/package \
+            --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" \
+            --skip-duplicate

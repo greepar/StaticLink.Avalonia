@@ -4,3 +4,4 @@ artifacts/
 *.nupkg
 *.snupkg
 External/NativeStatic/.work/
+External/AvaloniaNative/.work/

@@ -6,7 +6,7 @@
         <IncludeBuildOutput>false</IncludeBuildOutput>
         <SuppressDependenciesWhenPacking>false</SuppressDependenciesWhenPacking>
         <PackageId>StaticLink.Avalonia.Native</PackageId>
-        <Version>11.3.14.1</Version>
+        <Version>0.0.0</Version>
         <Authors>greepar</Authors>
         <Company>greepar</Company>
         <Description>Static AvaloniaNative library for macOS Avalonia NativeAOT publishing.</Description>
@@ -19,14 +19,14 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <None Include="../StaticGraphics/README.md" Pack="true" PackagePath="README.md" />
+        <None Include="README.md" Pack="true" PackagePath="README.md" />
         <None Include="lib/net8.0/_._" Pack="true" PackagePath="lib/net8.0/_._" />
         <None Include="buildTransitive/StaticLink.Avalonia.Native.props" Pack="true" PackagePath="buildTransitive/$(PackageId).props" />
         <None Include="buildTransitive/StaticLink.Avalonia.Native.targets" Pack="true" PackagePath="buildTransitive/$(PackageId).targets" />
         <None Include="buildTransitive/StaticLink.Avalonia.Native.MacOSFontWarmup.cs" Pack="true" PackagePath="buildTransitive/StaticLink.Avalonia.Native.MacOSFontWarmup.cs" />
-        <None Include="../../External/NativeStatic/osx-x64/native/libAvaloniaNative.a" Condition="Exists('../../External/NativeStatic/osx-x64/native/libAvaloniaNative.a')" Pack="true" PackagePath="static/osx-x64/native/libAvaloniaNative.a" />
-        <None Include="../../External/NativeStatic/osx-x64/native/macos_font_preinit.o" Condition="Exists('../../External/NativeStatic/osx-x64/native/macos_font_preinit.o')" Pack="true" PackagePath="static/osx-x64/native/macos_font_preinit.o" />
-        <None Include="../../External/NativeStatic/osx-arm64/native/libAvaloniaNative.a" Condition="Exists('../../External/NativeStatic/osx-arm64/native/libAvaloniaNative.a')" Pack="true" PackagePath="static/osx-arm64/native/libAvaloniaNative.a" />
-        <None Include="../../External/NativeStatic/osx-arm64/native/macos_font_preinit.o" Condition="Exists('../../External/NativeStatic/osx-arm64/native/macos_font_preinit.o')" Pack="true" PackagePath="static/osx-arm64/native/macos_font_preinit.o" />
+        <None Include="../../External/AvaloniaNative/osx-x64/native/libAvaloniaNative.a" Pack="true" PackagePath="static/osx-x64/native/libAvaloniaNative.a" />
+        <None Include="../../External/AvaloniaNative/osx-x64/native/macos_font_preinit.o" Pack="true" PackagePath="static/osx-x64/native/macos_font_preinit.o" />
+        <None Include="../../External/AvaloniaNative/osx-arm64/native/libAvaloniaNative.a" Pack="true" PackagePath="static/osx-arm64/native/libAvaloniaNative.a" />
+        <None Include="../../External/AvaloniaNative/osx-arm64/native/macos_font_preinit.o" Pack="true" PackagePath="static/osx-arm64/native/macos_font_preinit.o" />
     </ItemGroup>
 </Project>

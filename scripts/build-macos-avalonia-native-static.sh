@@ -3,8 +3,8 @@ set -euo pipefail
 
 RID="${RID:-osx-arm64}"
 AVALONIA_VERSION="${AVALONIA_VERSION:-11.3.14}"
-WORK_DIR="${WORK_DIR:-$PWD/External/NativeStatic/.work}"
-OUTPUT_DIR="${OUTPUT_DIR:-$PWD/External/NativeStatic/$RID/native}"
+WORK_DIR="${WORK_DIR:-$PWD/External/AvaloniaNative/.work}"
+OUTPUT_DIR="${OUTPUT_DIR:-$PWD/External/AvaloniaNative/$RID/native}"
 BUILD_JOBS="${BUILD_JOBS:-$(sysctl -n hw.ncpu 2>/dev/null || echo 4)}"
 
 case "$RID" in

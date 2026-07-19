@@ -5,8 +5,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$NuGetSource,
 
-    [Parameter(Mandatory = $true)]
-    [string]$StaticLinkVersion,
+    [string]$StaticLinkVersion = "",
 
     [string]$AvaloniaVersion = "11.3.14",
 
@@ -20,6 +19,11 @@ New-Item -ItemType Directory -Path $ProjectDir -Force | Out-Null
 $nativeReference = ""
 if ($StaticLinkNativeVersion) {
     $nativeReference = "`n    <PackageReference Include=`"StaticLink.Avalonia.Native`" Version=`"$StaticLinkNativeVersion`" />"
+}
+
+$staticLinkReference = ""
+if ($StaticLinkVersion) {
+    $staticLinkReference = "`n    <PackageReference Include=`"StaticLink.Avalonia`" Version=`"$StaticLinkVersion`" />"
 }
 
 @"
@@ -52,8 +56,7 @@ if ($StaticLinkNativeVersion) {
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="$AvaloniaVersion" />
     <PackageReference Include="Avalonia.Desktop" Version="$AvaloniaVersion" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="$AvaloniaVersion" />
-    <PackageReference Include="StaticLink.Avalonia" Version="$StaticLinkVersion" />$nativeReference
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="$AvaloniaVersion" />$staticLinkReference$nativeReference
   </ItemGroup>
 </Project>
 "@ | Set-Content -Path (Join-Path $ProjectDir "AvaloniaStaticLinkSmoke.csproj") -Encoding UTF8
