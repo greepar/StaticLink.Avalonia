@@ -258,6 +258,18 @@ jobs:
       - name: Pack NuGet package
         run: dotnet pack NuGet/StaticGraphics/StaticLink.Avalonia.csproj -c Release -o artifacts/nuget
 
+      - name: Verify portable NuGet paths
+        shell: bash
+        run: |
+          package=$(find artifacts/nuget -name 'StaticLink.Avalonia.*.nupkg' ! -name 'StaticLink.Avalonia.Native.*.nupkg' -print -quit)
+          test -n "$package"
+          if unzip -Z1 "$package" | grep -F '\'; then
+            echo "NuGet package contains Windows-only backslash paths."
+            exit 1
+          fi
+          unzip -Z1 "$package" | grep -Fx 'buildTransitive/StaticLink.Avalonia.props'
+          unzip -Z1 "$package" | grep -Fx 'buildTransitive/StaticLink.Avalonia.targets'
+
       - name: Upload NuGet artifact
         uses: actions/upload-artifact@v4
         with:
