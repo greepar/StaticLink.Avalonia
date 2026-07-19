@@ -1,0 +1,106 @@
+name: staticlink-avalonia-repack
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_version:
+        description: Existing package version containing the static libraries
+        required: true
+        default: 3.119.2-7151.11
+        type: string
+      publish_to_nuget:
+        description: Publish package to nuget.org
+        required: true
+        default: false
+        type: boolean
+
+jobs:
+  repack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Extract static libraries from existing package
+        env:
+          SOURCE_VERSION: ${{ inputs.source_version }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import pathlib
+          import urllib.request
+          import zipfile
+
+          version = os.environ["SOURCE_VERSION"]
+          package = pathlib.Path("artifacts/source.nupkg")
+          package.parent.mkdir(parents=True, exist_ok=True)
+          urllib.request.urlretrieve(
+              f"https://api.nuget.org/v3-flatcontainer/staticlink.avalonia/{version}/staticlink.avalonia.{version}.nupkg",
+              package,
+          )
+
+          output = pathlib.Path("External/NativeStatic")
+          with zipfile.ZipFile(package) as archive:
+              for entry in archive.infolist():
+                  name = entry.filename.replace("\\", "/")
+                  if not name.startswith("static/") or name.endswith("/"):
+                      continue
+                  destination = output / name.removeprefix("static/")
+                  destination.parent.mkdir(parents=True, exist_ok=True)
+                  destination.write_bytes(archive.read(entry))
+          PY
+
+      - name: Verify static archives
+        run: |
+          for rid in linux-x64 linux-arm64 linux-musl-x64 linux-musl-arm64 osx-x64 osx-arm64; do
+            test -f External/NativeStatic/$rid/native/libskia.a
+            test -f External/NativeStatic/$rid/native/libSkiaSharp.a
+            test -f External/NativeStatic/$rid/native/libHarfBuzzSharp.a
+            test -f External/NativeStatic/$rid/native/libANGLE_static.a
+            test -f External/NativeStatic/$rid/native/libGLESv2_static.a
+          done
+
+          for rid in win-x64 win-x86 win-arm64; do
+            test -f External/NativeStatic/$rid/native/skia.lib
+            test -f External/NativeStatic/$rid/native/SkiaSharp.lib
+            test -f External/NativeStatic/$rid/native/libHarfBuzzSharp.lib
+            test -f External/NativeStatic/$rid/native/libANGLE_static.lib
+            test -f External/NativeStatic/$rid/native/libGLESv2_static.lib
+          done
+          test -f External/NativeStatic/win-x86/native/skia_x86_stdcall_thunks.lib
+
+      - name: Pack NuGet package
+        run: dotnet pack NuGet/StaticGraphics/StaticLink.Avalonia.csproj -c Release -o artifacts/nuget
+
+      - name: Verify portable NuGet paths
+        run: |
+          package=$(find artifacts/nuget -name 'StaticLink.Avalonia.*.nupkg' ! -name 'StaticLink.Avalonia.Native.*.nupkg' -print -quit)
+          test -n "$package"
+          if unzip -Z1 "$package" | grep -F '\'; then
+            echo "NuGet package contains Windows-only backslash paths."
+            exit 1
+          fi
+          unzip -Z1 "$package" | grep -Fx 'buildTransitive/StaticLink.Avalonia.props'
+          unzip -Z1 "$package" | grep -Fx 'buildTransitive/StaticLink.Avalonia.targets'
+
+      - name: Upload NuGet artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: staticlink-avalonia-repacked-nuget
+          path: artifacts/nuget/*.nupkg
+          if-no-files-found: error
+
+      - name: Publish to nuget.org
+        if: ${{ inputs.publish_to_nuget == true }}
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          test -n "$NUGET_API_KEY"
+          dotnet nuget push artifacts/nuget/*.nupkg \
+            --source "https://api.nuget.org/v3/index.json" \
+            --api-key "$NUGET_API_KEY" \
+            --skip-duplicate
