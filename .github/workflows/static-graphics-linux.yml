@@ -1,0 +1,64 @@
+name: static-graphics-linux
+
+on:
+  workflow_call:
+    inputs:
+      skiasharp_version:
+        required: true
+        type: string
+      angle_branch:
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      skiasharp_version:
+        required: true
+        default: "3.119.4"
+        type: string
+      angle_branch:
+        required: true
+        default: "7922"
+        type: string
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: linux-x64
+            target_cpu: x64
+            runner: ubuntu-24.04
+          - rid: linux-arm64
+            target_cpu: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    env:
+      SKIASHARP_VERSION: ${{ inputs.skiasharp_version }}
+      ANGLE_BRANCH: ${{ inputs.angle_branch }}
+      RID: ${{ matrix.rid }}
+      TARGET_CPU: ${{ matrix.target_cpu }}
+      LLVM_AR: llvm-ar
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore native build cache
+        uses: actions/cache@v4
+        with:
+          path: External/NativeStatic/.work
+          key: native-work-linux-${{ matrix.rid }}-${{ inputs.skiasharp_version }}-${{ inputs.angle_branch }}-${{ hashFiles('External/NativeStatic/patches/*.patch', 'scripts/build-linux-static-graphics.sh') }}
+
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang lld llvm g++ ninja-build pkg-config libfontconfig1-dev libglib2.0-dev libgl1-mesa-dev libpci-dev libx11-dev libxcb1-dev libxext-dev
+
+      - name: Build Linux static graphics libraries
+        run: scripts/build-linux-static-graphics.sh all
+
+      - name: Upload Linux static archives
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-static-${{ matrix.rid }}
+          path: External/NativeStatic/${{ matrix.rid }}/*
+          if-no-files-found: error

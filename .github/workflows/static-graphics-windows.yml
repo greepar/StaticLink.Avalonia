@@ -1,0 +1,92 @@
+name: static-graphics-windows
+
+on:
+  workflow_call:
+    inputs:
+      skiasharp_version:
+        required: true
+        type: string
+      angle_branch:
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      skiasharp_version:
+        required: true
+        default: "3.119.4"
+        type: string
+      angle_branch:
+        required: true
+        default: "7922"
+        type: string
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            target_cpu: x64
+            msvc_arch: x64
+          - rid: win-x86
+            target_cpu: x86
+            msvc_arch: x86
+          - rid: win-arm64
+            target_cpu: arm64
+            msvc_arch: amd64_arm64
+    runs-on: windows-2022
+    env:
+      SKIASHARP_VERSION: ${{ inputs.skiasharp_version }}
+      ANGLE_BRANCH: ${{ inputs.angle_branch }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore native build cache
+        uses: actions/cache@v4
+        with:
+          path: External/NativeStatic/.work
+          key: native-work-windows-${{ matrix.rid }}-${{ inputs.skiasharp_version }}-${{ inputs.angle_branch }}-${{ hashFiles('External/NativeStatic/patches/*.patch', 'scripts/build-windows-static-graphics.ps1') }}
+
+      - name: Setup MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.msvc_arch }}
+
+      - name: Configure Chromium Visual Studio environment
+        shell: pwsh
+        run: |
+          "DEPOT_TOOLS_WIN_TOOLCHAIN=0" >> $env:GITHUB_ENV
+          "GYP_MSVS_VERSION=17.0" >> $env:GITHUB_ENV
+          "GYP_MSVS_OVERRIDE_PATH=$($env:VSINSTALLDIR.TrimEnd('\', '/'))" >> $env:GITHUB_ENV
+
+      - name: Install native build dependencies
+        shell: pwsh
+        run: |
+          git config --global core.longpaths true
+          choco install ninja llvm -y
+
+      - name: Validate Windows ANGLE inputs
+        shell: pwsh
+        env:
+          RID: ${{ matrix.rid }}
+          TARGET_CPU: ${{ matrix.target_cpu }}
+          DEPOT_TOOLS_WIN_TOOLCHAIN: 0
+          GYP_MSVS_VERSION: 17.0
+        run: .\scripts\build-windows-static-graphics.ps1 angle-preflight
+
+      - name: Build Windows static graphics libraries
+        shell: pwsh
+        env:
+          RID: ${{ matrix.rid }}
+          TARGET_CPU: ${{ matrix.target_cpu }}
+          DEPOT_TOOLS_WIN_TOOLCHAIN: 0
+          GYP_MSVS_VERSION: 17.0
+        run: .\scripts\build-windows-static-graphics.ps1 all
+
+      - name: Upload Windows static archives
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-static-${{ matrix.rid }}
+          path: External/NativeStatic/${{ matrix.rid }}/*
+          if-no-files-found: error

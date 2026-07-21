@@ -18,193 +18,46 @@ on:
       - "staticlink-avalonia-v*"
 
 env:
-  SKIASHARP_VERSION: "3.119.4"
-  ANGLE_BRANCH: "7922"
-  DOTNET_ALPINE_IMAGE: mcr.microsoft.com/dotnet/sdk:10.0-alpine
+  DOTNET_ALPINE_IMAGE: mcr.microsoft.com/dotnet/sdk:10.0.302-alpine3.23
 
 jobs:
+  preflight:
+    uses: ./.github/workflows/static-graphics-preflight.yml
+
   build-linux:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - rid: linux-x64
-            target_cpu: x64
-            runner: ubuntu-latest
-          - rid: linux-arm64
-            target_cpu: arm64
-            runner: ubuntu-24.04-arm
-          - rid: linux-musl-x64
-            target_cpu: x64
-            runner: ubuntu-latest
-          - rid: linux-musl-arm64
-            target_cpu: arm64
-            runner: ubuntu-24.04-arm
-    runs-on: ${{ matrix.runner }}
-    steps:
-      - uses: actions/checkout@v4
+    needs: preflight
+    uses: ./.github/workflows/static-graphics-linux.yml
+    with:
+      skiasharp_version: ${{ needs.preflight.outputs.skiasharp_version }}
+      angle_branch: ${{ needs.preflight.outputs.angle_branch }}
 
-      - name: Install native build dependencies
-        if: ${{ !startsWith(matrix.rid, 'linux-musl-') }}
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang lld llvm g++ ninja-build pkg-config libfontconfig1-dev libglib2.0-dev libgl1-mesa-dev libpci-dev libx11-dev libxcb1-dev libxext-dev
-
-      - name: Build Linux static graphics libraries
-        if: ${{ !startsWith(matrix.rid, 'linux-musl-') }}
-        env:
-          RID: ${{ matrix.rid }}
-          TARGET_CPU: ${{ matrix.target_cpu }}
-          LLVM_AR: llvm-ar
-        run: scripts/build-linux-static-graphics.sh all
-
-      - name: Build Linux musl static graphics libraries
-        if: ${{ startsWith(matrix.rid, 'linux-musl-') }}
-        run: |
-          docker run --rm \
-            -v "$PWD:/workspace" \
-            -w /workspace \
-            -e RID="${{ matrix.rid }}" \
-            -e TARGET_CPU="${{ matrix.target_cpu }}" \
-            -e OUTPUT_DIR="/workspace/External/NativeStatic/${{ matrix.rid }}/native" \
-            -e SKIASHARP_VERSION="$SKIASHARP_VERSION" \
-            -e ANGLE_BRANCH="$ANGLE_BRANCH" \
-            -e LLVM_AR=llvm-ar \
-            -e DEPOT_TOOLS_BOOTSTRAP_PYTHON3=0 \
-            -e VPYTHON_BYPASS="manually managed python not supported by chrome operations" \
-            "$DOTNET_ALPINE_IMAGE" \
-            sh -lc '
-              set -e
-              apk add --no-cache bash ca-certificates git python3 py3-httplib2 py3-pysocks py3-six clang compiler-rt lld llvm g++ ninja pkgconf fontconfig-dev glib-dev mesa-dev libx11-dev libxcb-dev libxext-dev pciutils-dev linux-headers perl curl tar xz patch gcompat libc6-compat
-              python3 - <<'"'"'PY'"'"'
-          import pathlib
-          import httplib2
-
-          path = pathlib.Path(httplib2.__file__).with_name("socks.py")
-          if not path.exists():
-              path.write_text("from socks import *\n")
-          PY
-              bash scripts/build-linux-static-graphics.sh all
-            '
-
-      - name: Upload Linux static archives
-        uses: actions/upload-artifact@v4
-        with:
-          name: native-static-${{ matrix.rid }}
-          path: External/NativeStatic/${{ matrix.rid }}/*
-          if-no-files-found: error
+  build-musl:
+    needs: preflight
+    uses: ./.github/workflows/static-graphics-musl.yml
+    with:
+      skiasharp_version: ${{ needs.preflight.outputs.skiasharp_version }}
+      angle_branch: ${{ needs.preflight.outputs.angle_branch }}
+      dotnet_alpine_image: mcr.microsoft.com/dotnet/sdk:10.0.302-alpine3.23
 
   build-windows:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - rid: win-x64
-            target_cpu: x64
-            msvc_arch: x64
-          - rid: win-x86
-            target_cpu: x86
-            msvc_arch: x86
-          - rid: win-arm64
-            target_cpu: arm64
-            msvc_arch: amd64_arm64
-    runs-on: windows-2022
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup MSVC environment
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: ${{ matrix.msvc_arch }}
-
-      - name: Configure Chromium Visual Studio environment
-        shell: pwsh
-        run: |
-          "DEPOT_TOOLS_WIN_TOOLCHAIN=0" >> $env:GITHUB_ENV
-          "GYP_MSVS_VERSION=17.0" >> $env:GITHUB_ENV
-          "GYP_MSVS_OVERRIDE_PATH=$($env:VSINSTALLDIR.TrimEnd('\', '/'))" >> $env:GITHUB_ENV
-
-      - name: Install native build dependencies
-        shell: pwsh
-        run: |
-          git config --global core.longpaths true
-          choco install ninja llvm -y
-
-      - name: Validate Windows ANGLE inputs
-        shell: pwsh
-        env:
-          RID: ${{ matrix.rid }}
-          TARGET_CPU: ${{ matrix.target_cpu }}
-          DEPOT_TOOLS_WIN_TOOLCHAIN: 0
-          GYP_MSVS_VERSION: 17.0
-        run: .\scripts\build-windows-static-graphics.ps1 angle-preflight
-
-      - name: Build Windows static graphics libraries
-        shell: pwsh
-        env:
-          RID: ${{ matrix.rid }}
-          TARGET_CPU: ${{ matrix.target_cpu }}
-          DEPOT_TOOLS_WIN_TOOLCHAIN: 0
-          GYP_MSVS_VERSION: 17.0
-        run: .\scripts\build-windows-static-graphics.ps1 all
-
-      - name: Upload Windows static archives
-        uses: actions/upload-artifact@v4
-        with:
-          name: native-static-${{ matrix.rid }}
-          path: External/NativeStatic/${{ matrix.rid }}/*
-          if-no-files-found: error
+    needs: preflight
+    uses: ./.github/workflows/static-graphics-windows.yml
+    with:
+      skiasharp_version: ${{ needs.preflight.outputs.skiasharp_version }}
+      angle_branch: ${{ needs.preflight.outputs.angle_branch }}
 
   build-macos:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - rid: osx-x64
-            target_cpu: x64
-            runner: macos-15
-          - rid: osx-arm64
-            target_cpu: arm64
-            runner: macos-15
-    runs-on: ${{ matrix.runner }}
-    env:
-      RID: ${{ matrix.rid }}
-      TARGET_CPU: ${{ matrix.target_cpu }}
-      WORK_DIR: ${{ github.workspace }}/External/NativeStatic/.work
-      OUTPUT_DIR: ${{ github.workspace }}/External/NativeStatic/${{ matrix.rid }}/native
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install native build dependencies
-        run: brew install ninja
-
-      - name: Install Xcode Metal toolchain
-        run: |
-          set -euo pipefail
-          cat > /tmp/staticlink-metal-check.metal <<'EOF'
-          #include <metal_stdlib>
-          using namespace metal;
-          kernel void staticlink_metal_check(device float* values [[buffer(0)]], uint id [[thread_position_in_grid]]) { values[id] = 0; }
-          EOF
-          if ! xcrun metal -c /tmp/staticlink-metal-check.metal -o /tmp/staticlink-metal-check.air >/dev/null 2>&1; then
-            sudo xcodebuild -downloadComponent MetalToolchain
-          fi
-          xcrun metal -c /tmp/staticlink-metal-check.metal -o /tmp/staticlink-metal-check.air >/dev/null
-
-      - name: Build macOS static graphics libraries
-        run: bash ./scripts/build-macos-static-graphics.sh all
-
-      - name: Upload macOS static archives
-        uses: actions/upload-artifact@v4
-        with:
-          name: native-static-${{ matrix.rid }}
-          path: External/NativeStatic/${{ matrix.rid }}/*
-          if-no-files-found: error
+    needs: preflight
+    uses: ./.github/workflows/static-graphics-macos.yml
+    with:
+      skiasharp_version: ${{ needs.preflight.outputs.skiasharp_version }}
+      angle_branch: ${{ needs.preflight.outputs.angle_branch }}
 
   pack:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs:
       - build-linux
+      - build-musl
       - build-windows
       - build-macos
     permissions:
@@ -215,7 +68,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: "10.0.302"
 
       - name: Download static archives
         uses: actions/download-artifact@v4
@@ -279,23 +132,6 @@ jobs:
             artifacts/nuget/*.snupkg
           if-no-files-found: error
 
-      - name: Publish to nuget.org
-        if: ${{ startsWith(github.ref, 'refs/tags/staticlink-avalonia-v') || (github.event_name == 'workflow_dispatch' && inputs.publish_to_nuget == true) }}
-        env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
-        run: |
-          if [ -z "$NUGET_API_KEY" ]; then
-            echo "NUGET_API_KEY secret is not configured. Skipping publish."
-            exit 0
-          fi
-
-          for package in artifacts/nuget/*.nupkg; do
-            dotnet nuget push "$package" \
-              --source "https://api.nuget.org/v3/index.json" \
-              --api-key "$NUGET_API_KEY" \
-              --skip-duplicate
-          done
-
   smoke-avalonia:
     needs: pack
     strategy:
@@ -312,15 +148,15 @@ jobs:
             runner: windows-2022
             msvc_arch: amd64_arm64
           - rid: linux-x64
-            runner: ubuntu-latest
+            runner: ubuntu-24.04
           - rid: linux-arm64
             runner: ubuntu-24.04-arm
           - rid: linux-musl-x64
-            runner: ubuntu-latest
+            runner: ubuntu-24.04
           - rid: linux-musl-arm64
             runner: ubuntu-24.04-arm
           - rid: osx-x64
-            runner: macos-14
+            runner: macos-15
             avalonia_version: 11.3.14
           - rid: osx-arm64
             runner: macos-15
@@ -344,7 +180,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: "10.0.302"
 
       - name: Download NuGet package
         uses: actions/download-artifact@v4
@@ -447,7 +283,7 @@ jobs:
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace \
-            alpine:latest \
+            alpine:3.23 \
             sh -c 'apk add --no-cache binutils pax-utils && app="artifacts/smoke-${{ matrix.rid }}/AvaloniaStaticLinkSmoke" && readelf -l "$app" | grep "Requesting program interpreter: /lib/ld-musl-" && scanelf -n "$app" && ! scanelf -n "$app" | grep -E "ld-linux|ld64.so"'
 
       - name: Run Linux musl Avalonia smoke app
@@ -458,7 +294,7 @@ jobs:
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace/artifacts/smoke-${{ matrix.rid }} \
-            alpine:latest \
+            alpine:3.23 \
             sh -c 'apk add --no-cache xvfb-run libstdc++ libgcc fontconfig freetype ttf-dejavu libx11 libxcb libxext libxrender libxi libxrandr libxcursor libxfixes libxinerama libice libsm mesa-gl mesa-egl && fc-cache -f && fc-match sans && chmod +x ./AvaloniaStaticLinkSmoke && timeout 15s xvfb-run -a ./AvaloniaStaticLinkSmoke || code=$?; if [ "${code:-0}" = 124 ] || [ "${code:-0}" = 143 ]; then echo "Avalonia musl smoke app stayed alive for 15 seconds."; exit 0; fi; exit "${code:-0}"'
 
       - name: Run macOS Avalonia smoke app
@@ -508,21 +344,65 @@ jobs:
           path: artifacts/smoke-${{ matrix.rid }}/**
           if-no-files-found: error
 
-  release:
-    runs-on: ubuntu-latest
+  publish-nuget:
+    runs-on: ubuntu-24.04
     needs:
       - pack
       - smoke-avalonia
+    steps:
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.302"
+
+      - name: Download NuGet package
+        uses: actions/download-artifact@v4
+        with:
+          name: staticlink-avalonia-nuget
+          path: artifacts/nuget
+
+      - name: Publish to nuget.org
+        if: ${{ startsWith(github.ref, 'refs/tags/staticlink-avalonia-v') || (github.event_name == 'workflow_dispatch' && inputs.publish_to_nuget == true) }}
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          if [ -z "$NUGET_API_KEY" ]; then
+            echo "NUGET_API_KEY secret is not configured. Skipping publish."
+            exit 0
+          fi
+
+          for package in artifacts/nuget/*.nupkg; do
+            dotnet nuget push "$package" \
+              --source "https://api.nuget.org/v3/index.json" \
+              --api-key "$NUGET_API_KEY" \
+              --skip-duplicate
+          done
+
+  release:
+    runs-on: ubuntu-24.04
+    needs:
+      - preflight
+      - pack
+      - smoke-avalonia
+      - publish-nuget
     if: ${{ startsWith(github.ref, 'refs/tags/staticlink-avalonia-v') || (github.event_name == 'workflow_dispatch' && inputs.publish_to_release == true) }}
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download release artifacts
+      - name: Download NuGet artifact
         uses: actions/download-artifact@v4
         with:
+          name: staticlink-avalonia-nuget
+          path: release-artifacts/staticlink-avalonia-nuget
+
+      - name: Download smoke artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: avalonia-smoke-*
           path: release-artifacts
+          merge-multiple: false
 
       - name: Prepare release files
         run: |
@@ -538,19 +418,21 @@ jobs:
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          PACKAGE_VERSION: ${{ needs.preflight.outputs.package_version }}
         run: |
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
             release_tag="${GITHUB_REF_NAME}"
             title="${GITHUB_REF_NAME}"
           else
-            release_tag="staticlink-avalonia-smoke-${GITHUB_RUN_NUMBER}"
-            title="StaticLink.Avalonia smoke ${GITHUB_RUN_NUMBER}"
+            release_tag="staticlink-avalonia-v${PACKAGE_VERSION}"
+            title="StaticLink.Avalonia ${PACKAGE_VERSION}"
           fi
 
           if gh release view "$release_tag" >/dev/null 2>&1; then
             gh release upload "$release_tag" release-files/* --clobber
           else
             gh release create "$release_tag" release-files/* \
+              --target "$GITHUB_SHA" \
               --title "$title" \
-              --notes "NuGet package plus Avalonia 11.3.14 NativeAOT single-file smoke apps for win-x64, win-arm64, linux-x64, linux-arm64, osx-x64, and osx-arm64."
+              --notes "NuGet package plus Avalonia 11.3.14 NativeAOT single-file smoke apps for win-x64, win-x86, win-arm64, linux-x64, linux-arm64, linux-musl-x64, linux-musl-arm64, osx-x64, and osx-arm64."
           fi
