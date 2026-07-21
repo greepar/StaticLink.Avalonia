@@ -81,6 +81,9 @@ jobs:
               bash scripts/build-linux-static-graphics.sh all
             '
 
+      - name: Normalize native build cache ownership
+        run: sudo chown -R "$(id -u):$(id -g)" External/NativeStatic/.work
+
       - name: Upload Linux musl static archives
         uses: actions/upload-artifact@v4
         with:

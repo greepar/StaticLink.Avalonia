@@ -241,8 +241,24 @@ jobs:
           }
           Get-ChildItem -Path $publishDir -Recurse -File | ForEach-Object { $_.FullName }
 
-      - name: Run Windows Avalonia smoke app
+      - name: Verify Windows executable architecture
         if: ${{ startsWith(matrix.rid, 'win-') }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $app = Join-Path $PWD "artifacts/smoke-${{ matrix.rid }}/AvaloniaStaticLinkSmoke.exe"
+          $expectedMachine = @{
+            "win-x64" = "8664 machine"
+            "win-x86" = "14C machine"
+            "win-arm64" = "AA64 machine"
+          }["${{ matrix.rid }}"]
+          $headers = & dumpbin /headers $app | Out-String
+          if ($LASTEXITCODE -ne 0 -or $headers -notmatch [regex]::Escape($expectedMachine)) {
+            throw "Expected $expectedMachine in PE headers for $app.`n$headers"
+          }
+
+      - name: Run Windows Avalonia smoke app
+        if: ${{ matrix.rid == 'win-x64' || matrix.rid == 'win-x86' }}
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
