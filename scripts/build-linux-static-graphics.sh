@@ -286,6 +286,8 @@ target_cpu = "$TARGET_CPU"
 is_debug = false
 is_component_build = false
 is_clang = true
+clang_base_path = "/usr"
+clang_use_chrome_plugins = false
 treat_warnings_as_errors = false
 use_custom_libcxx = false
 use_sysroot = false
@@ -386,10 +388,9 @@ append_angle_musl_gn_args() {
   local args_file="$1"
 
   if is_musl_rid; then
-    cat >>"$args_file" <<'EOF_ARGS'
-clang_base_path = "/usr"
-clang_use_chrome_plugins = false
-EOF_ARGS
+    local clang_version
+    clang_version="$(clang -dumpversion | cut -d. -f1)"
+    printf 'clang_version = "%s"\n' "$clang_version" >>"$args_file"
   fi
 }
 
@@ -416,7 +417,7 @@ prepare_musl_clang_runtime() {
   esac
 
   local src
-  src="$(find /usr/lib/llvm* /usr/lib/clang -path "*/${arch}-alpine-linux-musl/libclang_rt.builtins-${arch}.a" -print -quit 2>/dev/null || true)"
+  src="$(find /usr/lib/llvm* /usr/lib/clang -path "*${arch}*" -name 'libclang_rt.builtins*.a' -print -quit 2>/dev/null || true)"
   if [[ -z "$src" ]]; then
     echo "Could not find Alpine compiler-rt builtins for $arch" >&2
     return 1
