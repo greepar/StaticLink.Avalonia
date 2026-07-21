@@ -274,7 +274,7 @@ build_angle() {
     prepend_python_module_path six
     prepare_angle_gcs_artifacts "$src"
   fi
-  prepare_musl_clang_runtime
+  prepare_arm64_clang_runtime
   prepare_musl_libstdcxx_headers
   gclient sync -f -D -R
 
@@ -286,8 +286,6 @@ target_cpu = "$TARGET_CPU"
 is_debug = false
 is_component_build = false
 is_clang = true
-clang_base_path = "/usr"
-clang_use_chrome_plugins = false
 treat_warnings_as_errors = false
 use_custom_libcxx = false
 use_sysroot = false
@@ -300,7 +298,7 @@ angle_enable_swiftshader = false
 angle_enable_vulkan = false
 angle_enable_wgpu = false
 EOF_ARGS
-  append_angle_musl_gn_args "$out_dir/args.gn"
+  append_angle_arm64_gn_args "$out_dir/args.gn"
 
   gn gen "$out_dir"
   ninja -C "$out_dir" -j "$BUILD_JOBS" libANGLE_static libGLESv2_static
@@ -384,18 +382,22 @@ download_angle_gcs_artifact() {
   fi
 }
 
-append_angle_musl_gn_args() {
+append_angle_arm64_gn_args() {
   local args_file="$1"
 
-  if is_musl_rid; then
+  if [[ "$TARGET_CPU" == "arm64" ]]; then
     local clang_version
     clang_version="$(clang -dumpversion | cut -d. -f1)"
-    printf 'clang_version = "%s"\n' "$clang_version" >>"$args_file"
+    cat >>"$args_file" <<EOF_ARGS
+clang_base_path = "/usr"
+clang_use_chrome_plugins = false
+clang_version = "$clang_version"
+EOF_ARGS
   fi
 }
 
-prepare_musl_clang_runtime() {
-  if ! is_musl_rid; then
+prepare_arm64_clang_runtime() {
+  if [[ "$TARGET_CPU" != "arm64" ]]; then
     return 0
   fi
 
