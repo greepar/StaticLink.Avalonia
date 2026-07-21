@@ -273,7 +273,7 @@ build_angle() {
     patch_depot_tools_python_deps "$src/third_party/depot_tools"
     prepend_python_module_path six
     prepare_angle_gcs_artifacts "$src"
-    prepare_musl_arm64_clang_toolchain
+    prepare_musl_clang_toolchain
   fi
   prepare_musl_libstdcxx_headers
   gclient sync -f -D -R
@@ -302,7 +302,7 @@ angle_enable_swiftshader = false
 angle_enable_vulkan = false
 angle_enable_wgpu = false
 EOF_ARGS
-  if [[ "$TARGET_CPU" == "arm64" ]] && is_musl_rid; then
+  if is_musl_rid; then
     printf 'clang_base_path = "%s/clang"\nclang_use_chrome_plugins = false\nclang_version = "%s"\n' "$WORK_DIR" "$(clang -dumpversion | cut -d. -f1)" >>"$out_dir/args.gn"
   fi
   gn gen "$out_dir"
@@ -426,23 +426,36 @@ prepare_musl_libstdcxx_headers() {
   ln -sfn "$src_dir" "$dest_dir"
 }
 
-prepare_musl_arm64_clang_toolchain() {
-  if [[ "$TARGET_CPU" != "arm64" ]]; then
-    return 0
-  fi
+prepare_musl_clang_toolchain() {
+  local arch
+  local gnu_triple
+  case "$TARGET_CPU" in
+    x64)
+      arch="x86_64"
+      gnu_triple="x86_64-unknown-linux-gnu"
+      ;;
+    arm64)
+      arch="aarch64"
+      gnu_triple="aarch64-unknown-linux-gnu"
+      ;;
+    *)
+      echo "Unsupported musl ANGLE target_cpu: $TARGET_CPU" >&2
+      return 1
+      ;;
+  esac
 
   local clang_version
   clang_version="$(clang -dumpversion | cut -d. -f1)"
   local toolchain_dir="$WORK_DIR/clang"
   local runtime
-  runtime="$(find /usr/lib/llvm* /usr/lib/clang -path '*aarch64*' -name 'libclang_rt.builtins*.a' -print -quit 2>/dev/null || true)"
+  runtime="$(find /usr/lib/llvm* /usr/lib/clang -path "*${arch}*" -name 'libclang_rt.builtins*.a' -print -quit 2>/dev/null || true)"
   if [[ -z "$runtime" ]]; then
-    echo "Could not find Alpine compiler-rt builtins for aarch64" >&2
+    echo "Could not find Alpine compiler-rt builtins for $arch" >&2
     return 1
   fi
 
-  mkdir -p "$toolchain_dir/bin" "$toolchain_dir/lib/clang/$clang_version/lib/aarch64-unknown-linux-gnu"
-  ln -sf "$runtime" "$toolchain_dir/lib/clang/$clang_version/lib/aarch64-unknown-linux-gnu/libclang_rt.builtins.a"
+  mkdir -p "$toolchain_dir/bin" "$toolchain_dir/lib/clang/$clang_version/lib/$gnu_triple"
+  ln -sf "$runtime" "$toolchain_dir/lib/clang/$clang_version/lib/$gnu_triple/libclang_rt.builtins.a"
   cat >"$toolchain_dir/bin/clang-wrapper.py" <<'PY'
 #!/usr/bin/env python3
 import os
