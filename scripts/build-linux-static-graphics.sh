@@ -274,18 +274,21 @@ build_angle() {
     prepend_python_module_path six
     prepare_angle_gcs_artifacts "$src"
   fi
-  prepare_arm64_clang_runtime
   prepare_musl_libstdcxx_headers
   gclient sync -f -D -R
 
   local out_dir="$src/out/linux-static-$TARGET_CPU"
+  local angle_is_clang="true"
+  if [[ "$TARGET_CPU" == "arm64" ]]; then
+    angle_is_clang="false"
+  fi
   mkdir -p "$out_dir"
   cat >"$out_dir/args.gn" <<EOF_ARGS
 target_os = "linux"
 target_cpu = "$TARGET_CPU"
 is_debug = false
 is_component_build = false
-is_clang = true
+is_clang = $angle_is_clang
 treat_warnings_as_errors = false
 use_custom_libcxx = false
 use_sysroot = false
@@ -298,8 +301,6 @@ angle_enable_swiftshader = false
 angle_enable_vulkan = false
 angle_enable_wgpu = false
 EOF_ARGS
-  append_angle_arm64_gn_args "$out_dir/args.gn"
-
   gn gen "$out_dir"
   ninja -C "$out_dir" -j "$BUILD_JOBS" libANGLE_static libGLESv2_static
 
@@ -380,56 +381,6 @@ download_angle_gcs_artifact() {
     curl -fsSL "https://storage.googleapis.com/$bucket/$sha" -o "$output"
     chmod +x "$output"
   fi
-}
-
-append_angle_arm64_gn_args() {
-  local args_file="$1"
-
-  if [[ "$TARGET_CPU" == "arm64" ]]; then
-    local clang_version
-    clang_version="$(clang -dumpversion | cut -d. -f1)"
-    cat >>"$args_file" <<EOF_ARGS
-clang_base_path = "/usr"
-clang_use_chrome_plugins = false
-clang_version = "$clang_version"
-EOF_ARGS
-  fi
-}
-
-prepare_arm64_clang_runtime() {
-  if [[ "$TARGET_CPU" != "arm64" ]]; then
-    return 0
-  fi
-
-  local arch
-  local gnu_triple
-  case "$TARGET_CPU" in
-    x64)
-      arch="x86_64"
-      gnu_triple="x86_64-unknown-linux-gnu"
-      ;;
-    arm64)
-      arch="aarch64"
-      gnu_triple="aarch64-unknown-linux-gnu"
-      ;;
-    *)
-      echo "Unsupported musl ANGLE target_cpu for clang runtime: $TARGET_CPU" >&2
-      return 1
-      ;;
-  esac
-
-  local src
-  src="$(find /usr/lib/llvm* /usr/lib/clang -path "*${arch}*" -name 'libclang_rt.builtins*.a' -print -quit 2>/dev/null || true)"
-  if [[ -z "$src" ]]; then
-    echo "Could not find Alpine compiler-rt builtins for $arch" >&2
-    return 1
-  fi
-
-  local clang_version
-  clang_version="$(clang -print-resource-dir | awk -F/ '{print $NF}')"
-  local dest_dir="/usr/lib/clang/$clang_version/lib/$gnu_triple"
-  mkdir -p "$dest_dir"
-  ln -sf "$src" "$dest_dir/libclang_rt.builtins.a"
 }
 
 prepare_musl_libstdcxx_headers() {

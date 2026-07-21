@@ -2,7 +2,8 @@ diff --git a/DEPS b/DEPS
 index 8ba99a6..1a5e1a5 100644
 --- a/DEPS
 +++ b/DEPS
-@@ -769,7 +769,2 @@ deps = {
+@@ -768,9 +768,4 @@ deps = {
+   },
  
 -  'third_party/catapult': {
 -    'url': Var('chromium_git') + '/catapult.git' + '@' + Var('catapult_revision'),
@@ -10,7 +11,9 @@ index 8ba99a6..1a5e1a5 100644
 -  },
 -
    # Cherry is a dEQP/VK-GL-CTS management GUI written in Go. We use it for viewing test results.
-@@ -796,7 +791,2 @@ deps = {
+   'third_party/cherry': {
+@@ -795,9 +790,4 @@ deps = {
+ 
  
 -  'third_party/dawn': {
 -    'url': Var('dawn_git') + '/dawn.git' + '@' +  Var('dawn_revision'),
@@ -18,7 +21,9 @@ index 8ba99a6..1a5e1a5 100644
 -  },
 -
    'third_party/depot_tools': {
-@@ -876,7 +866,2 @@ deps = {
+     'url': Var('chromium_git') + '/chromium/tools/depot_tools.git@94e89b10b92cc9d6e58fc8d1b6474b7d29e8a114',
+@@ -875,9 +865,4 @@ deps = {
+   },
  
 -  'third_party/llvm/src': {
 -    'url': Var('chromium_git') + '/external/github.com/llvm/llvm-project@67790d3fb06b184b7be9c4d3e36ab01f0ac4198e',
@@ -26,7 +31,9 @@ index 8ba99a6..1a5e1a5 100644
 -  },
 -
    'third_party/llvm-build/Release+Asserts': {
-@@ -1218,7 +1203,2 @@ deps = {
+     'dep_type': 'gcs',
+@@ -1217,9 +1202,4 @@ deps = {
+   },
  
 -  'third_party/SwiftShader': {
 -    'url': Var('swiftshader_git') + '/SwiftShader@f3e464b1e56795940f826a972b39e19bd9f6ac6c',
@@ -34,10 +41,24 @@ index 8ba99a6..1a5e1a5 100644
 -  },
 -
    'third_party/turbine/cipd': {
-@@ -1234,6 +1214,2 @@ deps = {
+       'packages': [
+@@ -1233,8 +1213,4 @@ deps = {
+   },
  
 -  'third_party/VK-GL-CTS/src': {
 -    'url': Var('chromium_git') + '/external/github.com/KhronosGroup/VK-GL-CTS' + '@' + Var('vk_gl_cts_revision'),
 -  },
 -
    'third_party/vulkan-deps': {
+     'url': Var('chromium_git') + '/vulkan-deps@f2b9fece7c6772c09379b3a6938dbcd2573f2a3e',
+diff --git a/src/compiler/translator/IntermNode.cpp b/src/compiler/translator/IntermNode.cpp
+index 710bba9..33d4a64 100644
+--- a/src/compiler/translator/IntermNode.cpp
++++ b/src/compiler/translator/IntermNode.cpp
+@@ -881,5 +881,5 @@ const TConstantUnion *TIntermAggregate::getConstantValue() const
+         angle::base::CheckedNumeric<size_t> checkedArraySize = elementSize;
+         checkedArraySize *= getOutermostArraySize();
+-        constArray = new TConstantUnion[checkedArraySize.ValueOrDie()];
++        constArray = new TConstantUnion[static_cast<size_t>(checkedArraySize.ValueOrDie())];
+ 
+         size_t elementOffset = 0u;
