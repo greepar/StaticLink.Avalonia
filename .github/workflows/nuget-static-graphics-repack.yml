@@ -6,7 +6,7 @@ on:
       source_version:
         description: Existing package version containing the static libraries
         required: true
-        default: 3.119.2-7151.11
+        default: 3.119.4-7922.1
         type: string
       publish_to_nuget:
         description: Publish package to nuget.org

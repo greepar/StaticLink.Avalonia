@@ -6,8 +6,8 @@ WORK_DIR="${WORK_DIR:-$ROOT_DIR/External/NativeStatic/.work}"
 TARGET_CPU="${TARGET_CPU:-arm64}"
 RID="${RID:-osx-$TARGET_CPU}"
 OUTPUT_DIR="${OUTPUT_DIR:-$ROOT_DIR/External/NativeStatic/$RID}"
-SKIASHARP_VERSION="${SKIASHARP_VERSION:-3.119.2}"
-ANGLE_BRANCH="${ANGLE_BRANCH:-7151}"
+SKIASHARP_VERSION="${SKIASHARP_VERSION:-3.119.4}"
+ANGLE_BRANCH="${ANGLE_BRANCH:-7922}"
 BUILD_JOBS="${BUILD_JOBS:-$(sysctl -n hw.ncpu)}"
 ANGLE_PATCH_DIR="${ANGLE_PATCH_DIR:-$ROOT_DIR/External/NativeStatic/patches}"
 SKIA_DEPS_RETRIES="${SKIA_DEPS_RETRIES:-3}"
@@ -112,10 +112,12 @@ build_skia() {
   cat >"$out_dir/args.gn" <<EOF_ARGS
 target_os = "mac"
 target_cpu = "$TARGET_CPU"
+min_macos_version = "10.13"
 is_official_build = true
 is_static_skiasharp = true
 skia_enable_tools = false
 skia_enable_ganesh = true
+skia_use_metal = true
 skia_enable_pdf = false
 skia_enable_skottie = false
 skia_use_dng_sdk = false

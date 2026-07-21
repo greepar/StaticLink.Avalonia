@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="SmokeVersions.props" Condition="Exists('SmokeVersions.props')" />
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <PublishAot>true</PublishAot>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <PublishTrimmed>true</PublishTrimmed>
+    <PublishReadyToRun>false</PublishReadyToRun>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <AvaloniaVersion Condition="'$(AvaloniaVersion)' == ''">11.3.14</AvaloniaVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="$(AvaloniaVersion)" />
+    <PackageReference Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />
+    <PackageReference Include="StaticLink.Avalonia" Version="$(StaticLinkVersion)" Condition="'$(StaticLinkVersion)' != ''" />
+    <PackageReference Include="StaticLink.Avalonia.Native" Version="$(StaticLinkNativeVersion)" Condition="'$(StaticLinkNativeVersion)' != ''" />
+  </ItemGroup>
+</Project>
