@@ -7,7 +7,7 @@ $ErrorActionPreference = "Stop"
 
 $RootDir = Split-Path -Parent $PSScriptRoot
 $WorkDir = if ($env:WORK_DIR) { $env:WORK_DIR } else { Join-Path $RootDir "External\NativeStatic\.work" }
-$SkiaSharpVersion = if ($env:SKIASHARP_VERSION) { $env:SKIASHARP_VERSION } else { "3.119.4" }
+$SkiaSharpVersion = if ($env:SKIASHARP_VERSION) { $env:SKIASHARP_VERSION } else { "4.150.1" }
 $AngleBranch = if ($env:ANGLE_BRANCH) { $env:ANGLE_BRANCH } else { "7922" }
 $TargetCpu = if ($env:TARGET_CPU) { $env:TARGET_CPU } else { "x64" }
 $Rid = if ($env:RID) { $env:RID } else { "win-$TargetCpu" }

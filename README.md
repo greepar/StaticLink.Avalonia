@@ -11,10 +11,10 @@ dotnet add package StaticLink.Avalonia
 Or add it manually:
 
 ```xml
-<PackageReference Include="StaticLink.Avalonia" Version="3.119.4-7922.1" />
+<PackageReference Include="StaticLink.Avalonia" Version="4.150.1-7922.1" />
 ```
 
-`3.119.4-7922.1` supports Avalonia 11. If you need the SkiaSharp 2 line for an Avalonia 11 project, use this optional package variant:
+`4.150.1-7922.1` uses the latest stable SkiaSharp 4 release. If you need the SkiaSharp 2 line for an Avalonia 11 project, use this optional package variant:
 
 ```xml
 <PackageReference Include="StaticLink.Avalonia" Version="2.88.9-7151.10" />

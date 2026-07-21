@@ -16,7 +16,7 @@ on:
     inputs:
       skiasharp_version:
         required: true
-        default: "3.119.4"
+        default: "4.150.1"
         type: string
       angle_branch:
         required: true

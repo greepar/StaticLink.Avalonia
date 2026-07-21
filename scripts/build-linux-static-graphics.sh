@@ -6,7 +6,7 @@ WORK_DIR="${WORK_DIR:-$ROOT_DIR/External/NativeStatic/.work}"
 TARGET_CPU="${TARGET_CPU:-x64}"
 RID="${RID:-linux-$TARGET_CPU}"
 OUTPUT_DIR="${OUTPUT_DIR:-$ROOT_DIR/External/NativeStatic/$RID}"
-SKIASHARP_VERSION="${SKIASHARP_VERSION:-3.119.4}"
+SKIASHARP_VERSION="${SKIASHARP_VERSION:-4.150.1}"
 ANGLE_BRANCH="${ANGLE_BRANCH:-7922}"
 BUILD_JOBS="${BUILD_JOBS:-$(nproc)}"
 ANGLE_PATCH_DIR="${ANGLE_PATCH_DIR:-$ROOT_DIR/External/NativeStatic/patches}"
@@ -20,7 +20,7 @@ Usage: scripts/build-linux-static-graphics.sh [skia|angle|all]
 Environment:
   WORK_DIR            Source/build cache directory. Default: External/NativeStatic/.work
   OUTPUT_DIR          Final static library directory. Default: External/NativeStatic/linux-$TARGET_CPU
-  SKIASHARP_VERSION   SkiaSharp release branch version. Default: 3.119.4
+  SKIASHARP_VERSION   SkiaSharp release branch version. Default: 4.150.1
   ANGLE_BRANCH        ANGLE chromium branch. Default: 7922
   TARGET_CPU          GN target_cpu. Default: x64. Supported: x64, arm64
   RID                 Output RID. Default: linux-$TARGET_CPU
