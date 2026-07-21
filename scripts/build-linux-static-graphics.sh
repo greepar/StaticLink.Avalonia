@@ -273,13 +273,14 @@ build_angle() {
     patch_depot_tools_python_deps "$src/third_party/depot_tools"
     prepend_python_module_path six
     prepare_angle_gcs_artifacts "$src"
+    prepare_musl_arm64_clang_toolchain
   fi
   prepare_musl_libstdcxx_headers
   gclient sync -f -D -R
 
   local out_dir="$src/out/linux-static-$TARGET_CPU"
   local angle_is_clang="true"
-  if [[ "$TARGET_CPU" == "arm64" ]]; then
+  if [[ "$TARGET_CPU" == "arm64" && ! is_musl_rid ]]; then
     angle_is_clang="false"
   fi
   mkdir -p "$out_dir"
@@ -301,6 +302,9 @@ angle_enable_swiftshader = false
 angle_enable_vulkan = false
 angle_enable_wgpu = false
 EOF_ARGS
+  if [[ "$TARGET_CPU" == "arm64" ]] && is_musl_rid; then
+    printf 'clang_base_path = "%s/clang"\nclang_use_chrome_plugins = false\nclang_version = "%s"\n' "$WORK_DIR" "$(clang -dumpversion | cut -d. -f1)" >>"$out_dir/args.gn"
+  fi
   gn gen "$out_dir"
   ninja -C "$out_dir" -j "$BUILD_JOBS" libANGLE_static libGLESv2_static
 
@@ -420,6 +424,42 @@ prepare_musl_libstdcxx_headers() {
   fi
 
   ln -sfn "$src_dir" "$dest_dir"
+}
+
+prepare_musl_arm64_clang_toolchain() {
+  if [[ "$TARGET_CPU" != "arm64" ]]; then
+    return 0
+  fi
+
+  local clang_version
+  clang_version="$(clang -dumpversion | cut -d. -f1)"
+  local toolchain_dir="$WORK_DIR/clang"
+  local runtime
+  runtime="$(find /usr/lib/llvm* /usr/lib/clang -path '*aarch64*' -name 'libclang_rt.builtins*.a' -print -quit 2>/dev/null || true)"
+  if [[ -z "$runtime" ]]; then
+    echo "Could not find Alpine compiler-rt builtins for aarch64" >&2
+    return 1
+  fi
+
+  mkdir -p "$toolchain_dir/bin" "$toolchain_dir/lib/clang/$clang_version/lib/aarch64-unknown-linux-gnu"
+  ln -sf "$runtime" "$toolchain_dir/lib/clang/$clang_version/lib/aarch64-unknown-linux-gnu/libclang_rt.builtins.a"
+  cat >"$toolchain_dir/bin/clang-wrapper.py" <<'PY'
+#!/usr/bin/env python3
+import os
+import sys
+
+blocked = (
+    "-fdiagnostics-show-inlining-chain",
+    "-fno-lifetime-dse",
+    "-fsanitize-ignore-for-ubsan-feature=",
+)
+args = [arg for arg in sys.argv[1:] if not arg.startswith(blocked)]
+compiler = "/usr/bin/clang++" if os.path.basename(sys.argv[0]) == "clang++" else "/usr/bin/clang"
+os.execv(compiler, [compiler, *args])
+PY
+  chmod +x "$toolchain_dir/bin/clang-wrapper.py"
+  ln -sf clang-wrapper.py "$toolchain_dir/bin/clang"
+  ln -sf clang-wrapper.py "$toolchain_dir/bin/clang++"
 }
 
 copy_first_existing() {
