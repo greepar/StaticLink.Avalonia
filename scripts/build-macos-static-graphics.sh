@@ -68,11 +68,17 @@ sync_skiasharp() {
 prepare_skia_git_sync_deps() {
   local sync_deps="$1/tools/git-sync-deps"
   python3 - "$sync_deps" <<'PY'
+import re
 import pathlib
 import sys
 
 path = pathlib.Path(sys.argv[1])
 text = path.read_text()
+deps_path = path.with_name("DEPS")
+if deps_path.exists():
+    deps = deps_path.read_text()
+    deps = re.sub(r'^\s*"third_party/externals/dng_sdk"\s*:\s*"[^"]+",\s*\n', '', deps, flags=re.MULTILINE)
+    deps_path.write_text(deps)
 old = "  multithread(git_checkout_to_directory, list_of_arg_lists)"
 new = "  for args in list_of_arg_lists:\n    git_checkout_to_directory(*args)"
 if old in text:

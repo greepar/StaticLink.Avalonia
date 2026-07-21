@@ -356,6 +356,12 @@ function Sync-SkiaSharp {
 function Prepare-SkiaGitSyncDeps($SkiaDir) {
     $syncDeps = Join-Path $SkiaDir "tools\git-sync-deps"
     $text = Get-Content -Path $syncDeps -Raw
+    $depsPath = Join-Path $SkiaDir "DEPS"
+    if (Test-Path $depsPath) {
+        $depsText = Get-Content -Path $depsPath -Raw
+        $depsText = [regex]::Replace($depsText, '(?m)^\s*"third_party/externals/dng_sdk"\s*:\s*"[^"]+",\s*\r?\n', '')
+        Set-Content -Path $depsPath -Value $depsText -NoNewline -Encoding UTF8
+    }
     $old = "  multithread(git_checkout_to_directory, list_of_arg_lists)"
     $new = "  for args in list_of_arg_lists:`n    git_checkout_to_directory(*args)"
     if ($text.Contains($old)) {
