@@ -280,7 +280,7 @@ build_angle() {
 
   local out_dir="$src/out/linux-static-$TARGET_CPU"
   local angle_is_clang="true"
-  if [[ "$TARGET_CPU" == "arm64" && ! is_musl_rid ]]; then
+  if [[ "$TARGET_CPU" == "arm64" ]] && ! is_musl_rid; then
     angle_is_clang="false"
   fi
   mkdir -p "$out_dir"
@@ -460,6 +460,11 @@ PY
   chmod +x "$toolchain_dir/bin/clang-wrapper.py"
   ln -sf clang-wrapper.py "$toolchain_dir/bin/clang"
   ln -sf clang-wrapper.py "$toolchain_dir/bin/clang++"
+  for tool in llvm-ar llvm-ranlib llvm-nm; do
+    if command -v "$tool" >/dev/null 2>&1; then
+      ln -sf "$(command -v "$tool")" "$toolchain_dir/bin/$tool"
+    fi
+  done
 }
 
 copy_first_existing() {
