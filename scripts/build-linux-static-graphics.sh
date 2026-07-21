@@ -279,17 +279,13 @@ build_angle() {
   gclient sync -f -D -R
 
   local out_dir="$src/out/linux-static-$TARGET_CPU"
-  local angle_is_clang="false"
-  if is_musl_rid; then
-    angle_is_clang="true"
-  fi
   mkdir -p "$out_dir"
   cat >"$out_dir/args.gn" <<EOF_ARGS
 target_os = "linux"
 target_cpu = "$TARGET_CPU"
 is_debug = false
 is_component_build = false
-is_clang = $angle_is_clang
+is_clang = true
 treat_warnings_as_errors = false
 use_custom_libcxx = false
 use_sysroot = false
