@@ -70,6 +70,7 @@ jobs:
             sh -lc '
               set -e
               apk add --no-cache bash ca-certificates git python3 py3-httplib2 py3-pysocks py3-six clang compiler-rt lld llvm g++ ninja pkgconf fontconfig-dev glib-dev mesa-dev libx11-dev libxcb-dev libxext-dev pciutils-dev linux-headers perl curl tar xz patch gcompat libc6-compat
+              git config --global --add safe.directory "*"
               python3 - <<'"'"'PY'"'"'
           import pathlib
           import httplib2
