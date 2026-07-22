@@ -353,6 +353,21 @@ function Sync-SkiaSharp {
     return $src
 }
 
+function Patch-WinX86SkiaLinker($SkiaDir) {
+    if ($TargetCpu -ne "x86") {
+        return
+    }
+
+    $linkerPath = Join-Path $SkiaDir "src\c\sk_linker.cpp"
+    $text = Get-Content -Path $linkerPath -Raw
+    $pattern = '(?m)^    skjson::ObjectValue\* a = nullptr;\r?\n    auto r = \(\*a\)\["tmp"\]\.getType\(\);$'
+    $patched = [regex]::Replace($text, $pattern, '    int r = 0;')
+    if ($patched -eq $text) {
+        throw "Unable to patch win-x86 sk_linker JSON keep-alive references."
+    }
+    Set-Content -Path $linkerPath -Value $patched -NoNewline -Encoding UTF8
+}
+
 function Prepare-SkiaGitSyncDeps($SkiaDir) {
     $syncDeps = Join-Path $SkiaDir "tools\git-sync-deps"
     $text = Get-Content -Path $syncDeps -Raw
@@ -390,6 +405,7 @@ function Build-Skia {
     Ensure-DepotTools
     $src = Sync-SkiaSharp
     $skiaDir = Join-Path $src "externals\skia"
+    Patch-WinX86SkiaLinker $skiaDir
     if (-not (Test-Path (Join-Path $skiaDir "bin\gn.exe"))) {
         Invoke-SkiaGitSyncDeps $skiaDir
     }
