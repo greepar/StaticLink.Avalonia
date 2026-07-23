@@ -363,6 +363,9 @@ function Patch-WinX86SkiaLinker($SkiaDir) {
     $pattern = '(?m)^    skjson::ObjectValue\* a = nullptr;\r?\n    auto r = \(\*a\)\["tmp"\]\.getType\(\);\r?$'
     $patched = [regex]::Replace($text, $pattern, '    int r = 0;')
     if ($patched -eq $text) {
+        if ($text -match '(?m)^    int r = 0;\r?$') {
+            return
+        }
         throw "Unable to patch win-x86 sk_linker JSON keep-alive references."
     }
     Set-Content -Path $linkerPath -Value $patched -NoNewline -Encoding UTF8
