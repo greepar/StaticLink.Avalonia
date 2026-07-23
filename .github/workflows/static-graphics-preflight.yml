@@ -1,0 +1,81 @@
+name: static-graphics-preflight
+
+on:
+  workflow_call:
+    outputs:
+      package_version:
+        value: ${{ jobs.validate.outputs.package_version }}
+      skiasharp_version:
+        value: ${{ jobs.validate.outputs.skiasharp_version }}
+      angle_branch:
+        value: ${{ jobs.validate.outputs.angle_branch }}
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    outputs:
+      package_version: ${{ steps.versions.outputs.package_version }}
+      skiasharp_version: ${{ steps.versions.outputs.skiasharp_version }}
+      angle_branch: ${{ steps.versions.outputs.angle_branch }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.302"
+
+      - name: Read and validate versions
+        id: versions
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os
+          import pathlib
+          import xml.etree.ElementTree as ET
+
+          project = pathlib.Path("NuGet/StaticGraphics/StaticLink.Avalonia.csproj")
+          root = ET.parse(project).getroot()
+          package_version = root.findtext(".//Version")
+          skia_reference = next(
+              item.attrib["Version"]
+              for item in root.findall(".//PackageReference")
+              if item.attrib.get("Include") == "SkiaSharp"
+          )
+          version_base, revision = package_version.rsplit(".", 1)
+          skiasharp_version, angle_branch = version_base.split("-", 1)
+          if not revision.isdigit() or skiasharp_version != skia_reference:
+              raise SystemExit(f"Inconsistent package version: {package_version}, SkiaSharp: {skia_reference}")
+          if os.environ.get("GITHUB_REF_TYPE") == "tag":
+              expected_tag = f"staticlink-avalonia-v{package_version}"
+              if os.environ.get("GITHUB_REF_NAME") != expected_tag:
+                  raise SystemExit(f"Release tag must be {expected_tag}")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"package_version={package_version}\n")
+              output.write(f"skiasharp_version={skiasharp_version}\n")
+              output.write(f"angle_branch={angle_branch}\n")
+          PY
+
+      - name: Validate upstream refs and ANGLE patch
+        env:
+          SKIASHARP_VERSION: ${{ steps.versions.outputs.skiasharp_version }}
+          ANGLE_BRANCH: ${{ steps.versions.outputs.angle_branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git ls-remote --exit-code --heads https://github.com/mono/SkiaSharp.git "refs/heads/release/${SKIASHARP_VERSION}"
+          git clone --depth 1 --branch "chromium/${ANGLE_BRANCH}" https://github.com/google/angle.git /tmp/staticlink-angle
+          git -C /tmp/staticlink-angle apply --check "$GITHUB_WORKSPACE/External/NativeStatic/patches/angle-chromium-${ANGLE_BRANCH}.patch"
+
+      - name: Validate scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/build-linux-static-graphics.sh
+          bash -n scripts/build-macos-static-graphics.sh
+          pwsh -NoProfile -Command '$files = @("scripts/build-windows-static-graphics.ps1", "scripts/create-avalonia-smoke.ps1"); foreach ($file in $files) { $errors = $null; [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file), [ref]$null, [ref]$errors) | Out-Null; if ($errors.Count) { $errors | Format-List | Out-String; exit 1 } }'
+
+      - name: Compile smoke project
+        run: dotnet build Smoke/AvaloniaStaticLinkSmoke/AvaloniaStaticLinkSmoke.csproj -c Release -p:PublishAot=false

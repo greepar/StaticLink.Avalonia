@@ -6,8 +6,8 @@ WORK_DIR="${WORK_DIR:-$ROOT_DIR/External/NativeStatic/.work}"
 TARGET_CPU="${TARGET_CPU:-x64}"
 RID="${RID:-linux-$TARGET_CPU}"
 OUTPUT_DIR="${OUTPUT_DIR:-$ROOT_DIR/External/NativeStatic/$RID}"
-SKIASHARP_VERSION="${SKIASHARP_VERSION:-3.119.2}"
-ANGLE_BRANCH="${ANGLE_BRANCH:-7151}"
+SKIASHARP_VERSION="${SKIASHARP_VERSION:-4.150.1}"
+ANGLE_BRANCH="${ANGLE_BRANCH:-7922}"
 BUILD_JOBS="${BUILD_JOBS:-$(nproc)}"
 ANGLE_PATCH_DIR="${ANGLE_PATCH_DIR:-$ROOT_DIR/External/NativeStatic/patches}"
 LLVM_AR="${LLVM_AR:-llvm-ar-19}"
@@ -20,8 +20,8 @@ Usage: scripts/build-linux-static-graphics.sh [skia|angle|all]
 Environment:
   WORK_DIR            Source/build cache directory. Default: External/NativeStatic/.work
   OUTPUT_DIR          Final static library directory. Default: External/NativeStatic/linux-$TARGET_CPU
-  SKIASHARP_VERSION   SkiaSharp release branch version. Default: 3.119.2
-  ANGLE_BRANCH        ANGLE chromium branch. Default: 7151
+  SKIASHARP_VERSION   SkiaSharp release branch version. Default: 4.150.1
+  ANGLE_BRANCH        ANGLE chromium branch. Default: 7922
   TARGET_CPU          GN target_cpu. Default: x64. Supported: x64, arm64
   RID                 Output RID. Default: linux-$TARGET_CPU
   BUILD_JOBS          Ninja parallelism. Default: nproc
@@ -149,11 +149,17 @@ sync_skiasharp() {
 prepare_skia_git_sync_deps() {
   local sync_deps="$1/tools/git-sync-deps"
   python3 - "$sync_deps" <<'PY'
+import re
 import pathlib
 import sys
 
 path = pathlib.Path(sys.argv[1])
 text = path.read_text()
+deps_path = path.with_name("DEPS")
+if deps_path.exists():
+    deps = deps_path.read_text()
+    deps = re.sub(r'^\s*"third_party/externals/dng_sdk"\s*:\s*"[^"]+",\s*\n', '', deps, flags=re.MULTILINE)
+    deps_path.write_text(deps)
 old = "  multithread(git_checkout_to_directory, list_of_arg_lists)"
 new = "  for args in list_of_arg_lists:\n    git_checkout_to_directory(*args)"
 if old in text:
@@ -267,15 +273,15 @@ build_angle() {
     patch_depot_tools_python_deps "$src/third_party/depot_tools"
     prepend_python_module_path six
     prepare_angle_gcs_artifacts "$src"
+    prepare_musl_clang_toolchain
   fi
-  prepare_musl_clang_runtime
   prepare_musl_libstdcxx_headers
   gclient sync -f -D -R
 
   local out_dir="$src/out/linux-static-$TARGET_CPU"
-  local angle_is_clang="false"
-  if is_musl_rid; then
-    angle_is_clang="true"
+  local angle_is_clang="true"
+  if [[ "$TARGET_CPU" == "arm64" ]] && ! is_musl_rid; then
+    angle_is_clang="false"
   fi
   mkdir -p "$out_dir"
   cat >"$out_dir/args.gn" <<EOF_ARGS
@@ -296,8 +302,9 @@ angle_enable_swiftshader = false
 angle_enable_vulkan = false
 angle_enable_wgpu = false
 EOF_ARGS
-  append_angle_musl_gn_args "$out_dir/args.gn"
-
+  if is_musl_rid; then
+    printf 'clang_base_path = "%s/clang"\nclang_use_chrome_plugins = false\nclang_version = "%s"\n' "$WORK_DIR" "$(clang -dumpversion | cut -d. -f1)" >>"$out_dir/args.gn"
+  fi
   gn gen "$out_dir"
   ninja -C "$out_dir" -j "$BUILD_JOBS" libANGLE_static libGLESv2_static
 
@@ -380,53 +387,6 @@ download_angle_gcs_artifact() {
   fi
 }
 
-append_angle_musl_gn_args() {
-  local args_file="$1"
-
-  if is_musl_rid; then
-    cat >>"$args_file" <<'EOF_ARGS'
-clang_base_path = "/usr"
-clang_use_chrome_plugins = false
-EOF_ARGS
-  fi
-}
-
-prepare_musl_clang_runtime() {
-  if ! is_musl_rid; then
-    return 0
-  fi
-
-  local arch
-  local gnu_triple
-  case "$TARGET_CPU" in
-    x64)
-      arch="x86_64"
-      gnu_triple="x86_64-unknown-linux-gnu"
-      ;;
-    arm64)
-      arch="aarch64"
-      gnu_triple="aarch64-unknown-linux-gnu"
-      ;;
-    *)
-      echo "Unsupported musl ANGLE target_cpu for clang runtime: $TARGET_CPU" >&2
-      return 1
-      ;;
-  esac
-
-  local src
-  src="$(find /usr/lib/llvm* /usr/lib/clang -path "*/${arch}-alpine-linux-musl/libclang_rt.builtins-${arch}.a" -print -quit 2>/dev/null || true)"
-  if [[ -z "$src" ]]; then
-    echo "Could not find Alpine compiler-rt builtins for $arch" >&2
-    return 1
-  fi
-
-  local clang_version
-  clang_version="$(clang -print-resource-dir | awk -F/ '{print $NF}')"
-  local dest_dir="/usr/lib/clang/$clang_version/lib/$gnu_triple"
-  mkdir -p "$dest_dir"
-  ln -sf "$src" "$dest_dir/libclang_rt.builtins.a"
-}
-
 prepare_musl_libstdcxx_headers() {
   if ! is_musl_rid; then
     return 0
@@ -464,6 +424,60 @@ prepare_musl_libstdcxx_headers() {
   fi
 
   ln -sfn "$src_dir" "$dest_dir"
+}
+
+prepare_musl_clang_toolchain() {
+  local arch
+  local gnu_triple
+  case "$TARGET_CPU" in
+    x64)
+      arch="x86_64"
+      gnu_triple="x86_64-unknown-linux-gnu"
+      ;;
+    arm64)
+      arch="aarch64"
+      gnu_triple="aarch64-unknown-linux-gnu"
+      ;;
+    *)
+      echo "Unsupported musl ANGLE target_cpu: $TARGET_CPU" >&2
+      return 1
+      ;;
+  esac
+
+  local clang_version
+  clang_version="$(clang -dumpversion | cut -d. -f1)"
+  local toolchain_dir="$WORK_DIR/clang"
+  local runtime
+  runtime="$(find /usr/lib/llvm* /usr/lib/clang -path "*${arch}*" -name 'libclang_rt.builtins*.a' -print -quit 2>/dev/null || true)"
+  if [[ -z "$runtime" ]]; then
+    echo "Could not find Alpine compiler-rt builtins for $arch" >&2
+    return 1
+  fi
+
+  mkdir -p "$toolchain_dir/bin" "$toolchain_dir/lib/clang/$clang_version/lib/$gnu_triple"
+  ln -sf "$runtime" "$toolchain_dir/lib/clang/$clang_version/lib/$gnu_triple/libclang_rt.builtins.a"
+  cat >"$toolchain_dir/bin/clang-wrapper.py" <<'PY'
+#!/usr/bin/env python3
+import os
+import sys
+
+blocked = (
+    "-fdiagnostics-show-inlining-chain",
+    "-fno-lifetime-dse",
+    "-fsanitize-ignore-for-ubsan-feature=",
+)
+args = [arg for arg in sys.argv[1:] if not arg.startswith(blocked)]
+compiler = "/usr/bin/clang++" if os.path.basename(sys.argv[0]) == "clang++" else "/usr/bin/clang"
+os.execv(compiler, [compiler, *args])
+PY
+  chmod +x "$toolchain_dir/bin/clang-wrapper.py"
+  ln -sf clang-wrapper.py "$toolchain_dir/bin/clang"
+  ln -sf clang-wrapper.py "$toolchain_dir/bin/clang++"
+  for tool in llvm-ar llvm-ranlib llvm-nm; do
+    if command -v "$tool" >/dev/null 2>&1; then
+      ln -sf "$(command -v "$tool")" "$toolchain_dir/bin/$tool"
+    fi
+  done
 }
 
 copy_first_existing() {

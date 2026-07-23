@@ -7,8 +7,8 @@ $ErrorActionPreference = "Stop"
 
 $RootDir = Split-Path -Parent $PSScriptRoot
 $WorkDir = if ($env:WORK_DIR) { $env:WORK_DIR } else { Join-Path $RootDir "External\NativeStatic\.work" }
-$SkiaSharpVersion = if ($env:SKIASHARP_VERSION) { $env:SKIASHARP_VERSION } else { "3.119.2" }
-$AngleBranch = if ($env:ANGLE_BRANCH) { $env:ANGLE_BRANCH } else { "7151" }
+$SkiaSharpVersion = if ($env:SKIASHARP_VERSION) { $env:SKIASHARP_VERSION } else { "4.150.1" }
+$AngleBranch = if ($env:ANGLE_BRANCH) { $env:ANGLE_BRANCH } else { "7922" }
 $TargetCpu = if ($env:TARGET_CPU) { $env:TARGET_CPU } else { "x64" }
 $Rid = if ($env:RID) { $env:RID } else { "win-$TargetCpu" }
 $OutputDir = if ($env:OUTPUT_DIR) { $env:OUTPUT_DIR } else { Join-Path $RootDir "External\NativeStatic\$Rid" }
@@ -353,9 +353,33 @@ function Sync-SkiaSharp {
     return $src
 }
 
+function Patch-WinX86SkiaLinker($SkiaDir) {
+    if ($TargetCpu -ne "x86") {
+        return
+    }
+
+    $linkerPath = Join-Path $SkiaDir "src\c\sk_linker.cpp"
+    $text = Get-Content -Path $linkerPath -Raw
+    $pattern = '(?m)^    skjson::ObjectValue\* a = nullptr;\r?\n    auto r = \(\*a\)\["tmp"\]\.getType\(\);\r?$'
+    $patched = [regex]::Replace($text, $pattern, '    int r = 0;')
+    if ($patched -eq $text) {
+        if ($text -match '(?m)^    int r = 0;\r?$') {
+            return
+        }
+        throw "Unable to patch win-x86 sk_linker JSON keep-alive references."
+    }
+    Set-Content -Path $linkerPath -Value $patched -NoNewline -Encoding UTF8
+}
+
 function Prepare-SkiaGitSyncDeps($SkiaDir) {
     $syncDeps = Join-Path $SkiaDir "tools\git-sync-deps"
     $text = Get-Content -Path $syncDeps -Raw
+    $depsPath = Join-Path $SkiaDir "DEPS"
+    if (Test-Path $depsPath) {
+        $depsText = Get-Content -Path $depsPath -Raw
+        $depsText = [regex]::Replace($depsText, '(?m)^\s*"third_party/externals/dng_sdk"\s*:\s*"[^"]+",\s*\r?\n', '')
+        Set-Content -Path $depsPath -Value $depsText -NoNewline -Encoding UTF8
+    }
     $old = "  multithread(git_checkout_to_directory, list_of_arg_lists)"
     $new = "  for args in list_of_arg_lists:`n    git_checkout_to_directory(*args)"
     if ($text.Contains($old)) {
@@ -384,6 +408,7 @@ function Build-Skia {
     Ensure-DepotTools
     $src = Sync-SkiaSharp
     $skiaDir = Join-Path $src "externals\skia"
+    Patch-WinX86SkiaLinker $skiaDir
     if (-not (Test-Path (Join-Path $skiaDir "bin\gn.exe"))) {
         Invoke-SkiaGitSyncDeps $skiaDir
     }

@@ -6,8 +6,8 @@ WORK_DIR="${WORK_DIR:-$ROOT_DIR/External/NativeStatic/.work}"
 TARGET_CPU="${TARGET_CPU:-arm64}"
 RID="${RID:-osx-$TARGET_CPU}"
 OUTPUT_DIR="${OUTPUT_DIR:-$ROOT_DIR/External/NativeStatic/$RID}"
-SKIASHARP_VERSION="${SKIASHARP_VERSION:-3.119.2}"
-ANGLE_BRANCH="${ANGLE_BRANCH:-7151}"
+SKIASHARP_VERSION="${SKIASHARP_VERSION:-4.150.1}"
+ANGLE_BRANCH="${ANGLE_BRANCH:-7922}"
 BUILD_JOBS="${BUILD_JOBS:-$(sysctl -n hw.ncpu)}"
 ANGLE_PATCH_DIR="${ANGLE_PATCH_DIR:-$ROOT_DIR/External/NativeStatic/patches}"
 SKIA_DEPS_RETRIES="${SKIA_DEPS_RETRIES:-3}"
@@ -68,11 +68,17 @@ sync_skiasharp() {
 prepare_skia_git_sync_deps() {
   local sync_deps="$1/tools/git-sync-deps"
   python3 - "$sync_deps" <<'PY'
+import re
 import pathlib
 import sys
 
 path = pathlib.Path(sys.argv[1])
 text = path.read_text()
+deps_path = path.with_name("DEPS")
+if deps_path.exists():
+    deps = deps_path.read_text()
+    deps = re.sub(r'^\s*"third_party/externals/dng_sdk"\s*:\s*"[^"]+",\s*\n', '', deps, flags=re.MULTILINE)
+    deps_path.write_text(deps)
 old = "  multithread(git_checkout_to_directory, list_of_arg_lists)"
 new = "  for args in list_of_arg_lists:\n    git_checkout_to_directory(*args)"
 if old in text:
@@ -112,10 +118,12 @@ build_skia() {
   cat >"$out_dir/args.gn" <<EOF_ARGS
 target_os = "mac"
 target_cpu = "$TARGET_CPU"
+min_macos_version = "10.13"
 is_official_build = true
 is_static_skiasharp = true
 skia_enable_tools = false
 skia_enable_ganesh = true
+skia_use_metal = true
 skia_enable_pdf = false
 skia_enable_skottie = false
 skia_use_dng_sdk = false
