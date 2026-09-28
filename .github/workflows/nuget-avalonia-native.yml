@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       avalonia_version:
-        description: Avalonia version to build; empty uses the latest stable NuGet version
+        description: Avalonia version to build; empty checks the latest stable 11.x and 12.x versions
         required: false
         type: string
       force_build:
@@ -30,8 +30,7 @@ jobs:
     permissions:
       contents: read
     outputs:
-      avalonia_version: ${{ steps.version.outputs.avalonia_version }}
-      package_version: ${{ steps.version.outputs.package_version }}
+      versions: ${{ steps.version.outputs.versions }}
       should_build: ${{ steps.version.outputs.should_build }}
     steps:
       - name: Detect unpublished Avalonia version
@@ -43,31 +42,46 @@ jobs:
         run: |
           set -euo pipefail
 
-          avalonia_version="$REQUESTED_VERSION"
-          if [ -z "$avalonia_version" ]; then
-            avalonia_version="$(curl --fail --silent --show-error --location \
-              https://api.nuget.org/v3-flatcontainer/avalonia/index.json \
-              | jq -r '[.versions[] | select(contains("-") | not)] | last')"
+          if [ -n "$REQUESTED_VERSION" ]; then
+            candidate_versions=("$REQUESTED_VERSION")
+          else
+            nuget_versions="$(curl --fail --silent --show-error --location \
+              https://api.nuget.org/v3-flatcontainer/avalonia/index.json)"
+            candidate_versions=()
+            for major in 11 12; do
+              candidate_versions+=("$(jq -r --arg major "$major" \
+                '[.versions[] | select(startswith($major + ".") and (contains("-") | not))] | last' \
+                <<< "$nuget_versions")")
+            done
           fi
 
-          if [ -z "$avalonia_version" ] || [ "$avalonia_version" = "null" ]; then
-            echo "Could not determine the latest stable Avalonia version." >&2
-            exit 1
-          fi
+          versions='[]'
+          for avalonia_version in "${candidate_versions[@]}"; do
+            if [ -z "$avalonia_version" ] || [ "$avalonia_version" = "null" ]; then
+              echo "Could not determine a stable Avalonia version." >&2
+              exit 1
+            fi
 
-          package_version="$avalonia_version.1"
-          package_url="https://api.nuget.org/v3-flatcontainer/staticlink.avalonia.native/$package_version/staticlink.avalonia.native.$package_version.nupkg"
-          should_build=true
-          if [ "$FORCE_BUILD" != "true" ] && curl --fail --silent --location --output /dev/null "$package_url"; then
-            should_build=false
-          fi
+            package_version="$avalonia_version.1"
+            package_url="https://api.nuget.org/v3-flatcontainer/staticlink.avalonia.native/$package_version/staticlink.avalonia.native.$package_version.nupkg"
+            if [ "$FORCE_BUILD" != "true" ] && curl --fail --silent --location --output /dev/null "$package_url"; then
+              echo "Already published: $package_version"
+              continue
+            fi
 
-          echo "Avalonia version: $avalonia_version"
-          echo "StaticLink.Avalonia.Native version: $package_version"
-          echo "Build required: $should_build"
-          echo "avalonia_version=$avalonia_version" >> "$GITHUB_OUTPUT"
-          echo "package_version=$package_version" >> "$GITHUB_OUTPUT"
-          echo "should_build=$should_build" >> "$GITHUB_OUTPUT"
+            echo "Build required: $package_version"
+            versions="$(jq -cn --argjson versions "$versions" \
+              --arg avalonia_version "$avalonia_version" \
+              --arg package_version "$package_version" \
+              '$versions + [{avalonia_version: $avalonia_version, package_version: $package_version}]')"
+          done
+
+          echo "versions=$versions" >> "$GITHUB_OUTPUT"
+          if [ "$versions" = '[]' ]; then
+            echo 'should_build=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'should_build=true' >> "$GITHUB_OUTPUT"
+          fi
 
   build:
     needs: detect
@@ -75,6 +89,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        version: ${{ fromJSON(needs.detect.outputs.versions) }}
+        rid: [osx-x64, osx-arm64]
         include:
           - rid: osx-x64
             runner: macos-14
@@ -85,7 +101,7 @@ jobs:
       contents: read
     env:
       RID: ${{ matrix.rid }}
-      AVALONIA_VERSION: ${{ needs.detect.outputs.avalonia_version }}
+      AVALONIA_VERSION: ${{ matrix.version.avalonia_version }}
       WORK_DIR: ${{ github.workspace }}/External/AvaloniaNative/.work
       OUTPUT_DIR: ${{ github.workspace }}/External/AvaloniaNative/${{ matrix.rid }}/native
     steps:
@@ -107,7 +123,7 @@ jobs:
       - name: Upload static AvaloniaNative
         uses: actions/upload-artifact@v4
         with:
-          name: native-avalonia-${{ matrix.rid }}
+          name: native-avalonia-${{ matrix.version.avalonia_version }}-${{ matrix.rid }}
           path: |
             External/AvaloniaNative/${{ matrix.rid }}/native/libAvaloniaNative.a
             External/AvaloniaNative/${{ matrix.rid }}/native/macos_font_preinit.o
@@ -118,6 +134,9 @@ jobs:
       - detect
       - build
     if: ${{ needs.detect.outputs.should_build == 'true' }}
+    strategy:
+      matrix:
+        version: ${{ fromJSON(needs.detect.outputs.versions) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -132,7 +151,7 @@ jobs:
       - name: Download static AvaloniaNative archives
         uses: actions/download-artifact@v4
         with:
-          pattern: native-avalonia-*
+          pattern: native-avalonia-${{ matrix.version.avalonia_version }}-*
           path: artifacts/native
           merge-multiple: false
 
@@ -142,8 +161,8 @@ jobs:
           set -euo pipefail
           for rid in osx-x64 osx-arm64; do
             mkdir -p "External/AvaloniaNative/$rid/native"
-            cp "artifacts/native/native-avalonia-$rid/libAvaloniaNative.a" "External/AvaloniaNative/$rid/native/"
-            cp "artifacts/native/native-avalonia-$rid/macos_font_preinit.o" "External/AvaloniaNative/$rid/native/"
+            cp "artifacts/native/native-avalonia-${{ matrix.version.avalonia_version }}-$rid/libAvaloniaNative.a" "External/AvaloniaNative/$rid/native/"
+            cp "artifacts/native/native-avalonia-${{ matrix.version.avalonia_version }}-$rid/macos_font_preinit.o" "External/AvaloniaNative/$rid/native/"
           done
 
       - name: Pack StaticLink.Avalonia.Native
@@ -151,13 +170,13 @@ jobs:
           dotnet pack NuGet/AvaloniaNative/StaticLink.Avalonia.Native.csproj \
             -c Release \
             -o artifacts/nuget \
-            /p:PackageVersion=${{ needs.detect.outputs.package_version }} \
-            /p:Version=${{ needs.detect.outputs.package_version }}
+            /p:PackageVersion=${{ matrix.version.package_version }} \
+            /p:Version=${{ matrix.version.package_version }}
 
       - name: Upload NuGet package
         uses: actions/upload-artifact@v4
         with:
-          name: staticlink-avalonia-native-${{ needs.detect.outputs.package_version }}
+          name: staticlink-avalonia-native-${{ matrix.version.package_version }}
           path: artifacts/nuget/*.nupkg
           if-no-files-found: error
 
@@ -169,6 +188,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        version: ${{ fromJSON(needs.detect.outputs.versions) }}
+        rid: [osx-x64, osx-arm64]
         include:
           - rid: osx-x64
             runner: macos-14
@@ -188,7 +209,7 @@ jobs:
       - name: Download NuGet package
         uses: actions/download-artifact@v4
         with:
-          name: staticlink-avalonia-native-${{ needs.detect.outputs.package_version }}
+          name: staticlink-avalonia-native-${{ matrix.version.package_version }}
           path: artifacts/nuget
 
       - name: Publish Avalonia NativeAOT smoke app
@@ -198,8 +219,8 @@ jobs:
           pwsh ./scripts/create-avalonia-smoke.ps1 `
             -ProjectDir $projectDir `
             -NuGetSource (Resolve-Path "artifacts/nuget") `
-            -AvaloniaVersion "${{ needs.detect.outputs.avalonia_version }}" `
-            -StaticLinkNativeVersion "${{ needs.detect.outputs.package_version }}"
+            -AvaloniaVersion "${{ matrix.version.avalonia_version }}" `
+            -StaticLinkNativeVersion "${{ matrix.version.package_version }}"
           dotnet publish (Join-Path $projectDir "AvaloniaStaticLinkSmoke.csproj") `
             -c Release `
             -r "${{ matrix.rid }}" `
@@ -248,6 +269,9 @@ jobs:
       - detect
       - smoke
     if: ${{ needs.detect.outputs.should_build == 'true' && (github.event_name == 'schedule' || inputs.publish_to_nuget == true) }}
+    strategy:
+      matrix:
+        version: ${{ fromJSON(needs.detect.outputs.versions) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -256,7 +280,7 @@ jobs:
       - name: Download NuGet package
         uses: actions/download-artifact@v4
         with:
-          name: staticlink-avalonia-native-${{ needs.detect.outputs.package_version }}
+          name: staticlink-avalonia-native-${{ matrix.version.package_version }}
           path: artifacts/nuget
 
       - name: Validate Trusted Publishing configuration
