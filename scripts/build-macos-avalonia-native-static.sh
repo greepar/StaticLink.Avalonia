@@ -26,7 +26,12 @@ if git -C "$src" config -f .gitmodules --get-regexp path | grep -q 'external/Num
 fi
 
 if [[ ! -f "$src/native/Avalonia.Native/inc/avalonia-native.h" ]]; then
-  bash "$src/native/Avalonia.Native/generate-headers.sh"
+  header_project="$src/native/Avalonia.Native/Avalonia.Native.macOS.proj"
+  if [[ -f "$header_project" ]]; then
+    dotnet build "$header_project" -t:GenerateMicroComItems
+  else
+    bash "$src/native/Avalonia.Native/generate-headers.sh"
+  fi
 fi
 
 project="$src/native/Avalonia.Native/src/OSX/Avalonia.Native.OSX.xcodeproj"
