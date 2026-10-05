@@ -81,6 +81,8 @@ def compiler(config, tool, incoming):
         # Accept Windows header/Skia spellings such as __forceinline while
         # retaining the GNU target ABI and leaving _MSC_VER undefined.
         args.append("-fms-extensions")
+        if config.get("windows7_compat"):
+            args += ["-DANGLE_WINDOWS_NO_FUTEX", "-D_WIN32_WINNT=0x0601", "-DWINVER=0x0601"]
     if windows and config.get("mingw_headers"):
         args.extend(("-idirafter", config["mingw_headers"]))
     mapping = {
@@ -113,6 +115,8 @@ def compiler(config, tool, incoming):
             continue
         if flag.startswith("/D"):
             flag = "-D" + flag[2:]
+        if config.get("windows7_compat") and flag.startswith(("-D_WIN32_WINNT=", "-DWINVER=", "-DNTDDI_VERSION=")):
+            continue  # The compatibility profile owns the minimum OS version.
         if re.fullmatch(r"/std:(c\+\+\d+|c\d+)", flag):
             flag = "-std=" + flag[5:]
         if flag in ("/arch:SSE", "/arch:SSE2", "/arch:AVX"):
@@ -214,6 +218,11 @@ def prepare(args):
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     config = {"zig": zig, "target": TARGETS[args.target], "version": version}
+    if args.windows7_compat:
+        if args.target not in ("win-x64", "win-x86"):
+            raise SystemExit("Windows 7 supports only win-x64 and win-x86 profiles")
+        config["target"] = config["target"].replace("-windows-", "-windows.win7-")
+        config["windows7_compat"] = True
     if args.target.startswith("win"):
         include = output / "include"
         # Regeneration is idempotent; remove only the generated SDK case alias.
@@ -297,6 +306,7 @@ if __name__ == "__main__":
         parser = argparse.ArgumentParser(description=__doc__)
         parser.add_argument("--zig", default="zig")
         parser.add_argument("--target", choices=TARGETS, required=True)
+        parser.add_argument("--windows7-compat", action="store_true")
         parser.add_argument("--sdk", type=Path)
         parser.add_argument("--mingw-headers", type=Path, help="Pinned extra WinRT headers, after Zig's headers")
         parser.add_argument("--linux-sysroot", type=Path)

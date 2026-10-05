@@ -15,6 +15,10 @@ on:
         description: Published AvaloniaNative revision for independent graphics smoke tests
         type: string
         default: '1'
+      windows7_compat:
+        description: Build SkiaSharp 3 Windows x64/x86 native archives targeting Win7 (application runtime is separate)
+        type: boolean
+        default: false
       publish_to_nuget:
         description: Publish package to nuget.org
         required: true
@@ -59,6 +63,7 @@ jobs:
       skiasharp_version: ${{ needs.preflight.outputs.skiasharp_version }}
       source_lock: ${{ needs.preflight.outputs.source_lock }}
       toolchain_image: ${{ needs.environment.outputs.image }}
+      windows7_compat: ${{ inputs.windows7_compat }}
 
   pack:
     runs-on: ubuntu-24.04

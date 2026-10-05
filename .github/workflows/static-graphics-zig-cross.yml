@@ -19,6 +19,9 @@ on:
       source_lock:
         type: string
         required: true
+      windows7_compat:
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       skiasharp_version:
@@ -73,16 +76,17 @@ jobs:
           RECIPE_HASH: ${{ hashFiles('build/linux-toolchain/*.py', 'build/linux-toolchain/*.gn.in', 'build/linux-toolchain/*.c', 'build/linux-toolchain/cross-toolchain.lock.json', 'build/linux-toolchain/linux-sysroots*.lock.json', 'build/linux-toolchain/release.lock.json', 'build/linux-toolchain/patches/**', 'scripts/prepare-cross-sources.sh', 'scripts/build-linux-static-graphics.sh', 'External/NativeStatic/patches/*.patch') }}
           SKIASHARP_PROFILE: ${{ inputs.skiasharp_version }}
           CROSS_RID: ${{ matrix.rid }}
+          WINDOWS7_COMPAT: ${{ inputs.windows7_compat && (matrix.rid == 'win-x64' || matrix.rid == 'win-x86') }}
         run: |
           set -euo pipefail
-          identity="$(printf '%s\n' "$TOOLCHAIN_IMAGE" "$RECIPE_HASH" | sha256sum | cut -d' ' -f1)"
+          identity="$(printf '%s\n' "$TOOLCHAIN_IMAGE" "$RECIPE_HASH" "$WINDOWS7_COMPAT" | sha256sum | cut -d' ' -f1)"
           echo "prefix=zig-ccache-v1-$SKIASHARP_PROFILE-$CROSS_RID-$identity-" >> "$GITHUB_OUTPUT"
           echo "native=zig-native-v1-$SKIASHARP_PROFILE-$CROSS_RID-$identity" >> "$GITHUB_OUTPUT"
       - name: Restore verified native archives
         id: native-cache
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
-          path: External/NativeStatic/${{ matrix.rid }}/native
+          path: External/NativeStatic/${{ matrix.rid }}
           key: ${{ steps.cache-key.outputs.native }}
       - name: Restore latest compatible compiler cache
         if: ${{ steps.native-cache.outputs.cache-hit != 'true' }}
@@ -107,10 +111,11 @@ jobs:
         env:
           CROSS_RID: ${{ matrix.rid }}
           SKIASHARP_PROFILE: ${{ inputs.skiasharp_version }}
+          WINDOWS7_COMPAT: ${{ inputs.windows7_compat && (matrix.rid == 'win-x64' || matrix.rid == 'win-x86') }}
         run: |
           mkdir -p External/NativeStatic/.work/home
           docker run --rm --user "$(id -u):$(id -g)" \
-            -e HOME=/src/External/NativeStatic/.work/home -e CROSS_RID -e SKIASHARP_PROFILE \
+            -e HOME=/src/External/NativeStatic/.work/home -e CROSS_RID -e SKIASHARP_PROFILE -e WINDOWS7_COMPAT \
             -e CCACHE_DIR=/src/External/NativeStatic/.work/ccache -e CCACHE_MAXSIZE=128M \
             -e ZIG_GLOBAL_CACHE_DIR=/src/External/NativeStatic/.work/zig-global \
             -v "$PWD:/src" -w /src --entrypoint bash "$TOOLCHAIN_IMAGE" -c '
@@ -118,22 +123,25 @@ jobs:
               trap '"'"'ccache --max-size=128M; ccache --cleanup; ccache --show-stats'"'"' EXIT
               export SOURCE_LOCK="/src/build/linux-toolchain/release.lock.json"
               source scripts/prepare-cross-sources.sh
+              compat_args=()
+              if [ "$WINDOWS7_COMPAT" = true ]; then compat_args+=(--windows7-compat); fi
               python3 build/linux-toolchain/build-cross.py \
                 --target "$CROSS_RID" \
                 --sources-manifest "$WORK_DIR/cross-sources.json" \
                 --work /src/External/NativeStatic/.work/toolchains \
-                --output "/src/External/NativeStatic/zig-cross/$SKIASHARP_PROFILE/$CROSS_RID" --jobs 4
+                --output "/src/External/NativeStatic/zig-cross/$SKIASHARP_PROFILE/$CROSS_RID" --jobs 4 "${compat_args[@]}"
               python3 build/linux-toolchain/package-zig.py \
                 --rid "$CROSS_RID" \
                 --input "/src/External/NativeStatic/zig-cross/$SKIASHARP_PROFILE/$CROSS_RID" \
                 --output "/src/External/NativeStatic/$CROSS_RID/native"
+              cp -a "/src/External/NativeStatic/zig-cross/$SKIASHARP_PROFILE/$CROSS_RID/link-tests" "/src/External/NativeStatic/$CROSS_RID/link-tests"
             '
       - name: Save verified native archives
         if: ${{ steps.build.outcome == 'success' && steps.native-cache.outputs.cache-hit != 'true' }}
         continue-on-error: true
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
-          path: External/NativeStatic/${{ matrix.rid }}/native
+          path: External/NativeStatic/${{ matrix.rid }}
           key: ${{ steps.cache-key.outputs.native }}
       - name: Save compiler progress after build failure
         if: ${{ always() && steps.build.outcome == 'failure' && steps.cache.outputs.cache-primary-key != '' }}

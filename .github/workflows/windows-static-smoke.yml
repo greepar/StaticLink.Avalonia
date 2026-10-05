@@ -1,0 +1,110 @@
+name: windows-static-retest
+
+on:
+  workflow_dispatch:
+    inputs:
+      baseline_run_id:
+        description: Previous run containing the matching staticlink-avalonia-nuget artifact
+        type: string
+        required: true
+      windows7_compat:
+        description: Rebuild SkiaSharp 3 x64/x86 with the Win7 native profile
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+  packages: write
+
+jobs:
+  preflight:
+    if: ${{ inputs.windows7_compat }}
+    uses: ./.github/workflows/static-graphics-preflight.yml
+  environment:
+    if: ${{ inputs.windows7_compat }}
+    uses: ./.github/workflows/zig-toolchain-image.yml
+  native:
+    needs: [preflight, environment]
+    if: ${{ inputs.windows7_compat }}
+    uses: ./.github/workflows/static-graphics-zig-cross.yml
+    with:
+      skiasharp_version: ${{ needs.preflight.outputs.skiasharp_version }}
+      source_lock: ${{ needs.preflight.outputs.source_lock }}
+      toolchain_image: ${{ needs.environment.outputs.image }}
+      rids: '["win-x64","win-x86"]'
+      windows7_compat: true
+  smoke:
+    needs: native
+    if: ${{ always() && ((!inputs.windows7_compat && needs.native.result == 'skipped') || needs.native.result == 'success') }}
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        rid: ${{ fromJSON(inputs.windows7_compat && '["win-x64","win-x86"]' || '["win-x64","win-x86","win-arm64"]') }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Set up MSVC
+        shell: pwsh
+        run: ./scripts/setup-msvc.ps1 -Architecture ('${{ matrix.rid }}'.Substring(4))
+      - name: Install LLVM
+        shell: pwsh
+        run: choco install llvm -y
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: '10.0.302'
+      - name: Download existing package
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: staticlink-avalonia-nuget
+          path: artifacts/nuget
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.baseline_run_id }}
+      - name: Download Win7 native archives and probes
+        if: ${{ inputs.windows7_compat }}
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          pattern: native-static-win-*
+          path: artifacts/win7-native
+      - name: Overlay targets and optional native profile
+        shell: pwsh
+        run: |
+          $package = Get-ChildItem artifacts/nuget -Filter 'StaticLink.Avalonia.*.nupkg' | Where-Object { $_.Name -notlike 'StaticLink.Avalonia.Native.*' } | Select-Object -First 1
+          if (-not $package) { throw 'Baseline NuGet package missing' }
+          $args = @('--package', $package.FullName, '--targets', 'NuGet/StaticGraphics/buildTransitive/StaticLink.Avalonia.targets')
+          if ('${{ inputs.windows7_compat }}' -eq 'true') { $args += @('--native-root', 'artifacts/win7-native') }
+          python scripts/overlay-smoke-package.py @args
+          if ($LASTEXITCODE -ne 0) { throw 'Package overlay failed' }
+          $version = $package.BaseName.Substring('StaticLink.Avalonia.'.Length)
+          ./scripts/create-avalonia-smoke.ps1 -ProjectDir artifacts/avalonia-smoke-src -NuGetSource (Resolve-Path artifacts/nuget) -StaticLinkVersion $version
+      - name: Run native Win7-profile probes on current Windows
+        if: ${{ inputs.windows7_compat }}
+        shell: pwsh
+        run: |
+          foreach ($name in @('raster', 'angle')) {
+            & "./artifacts/win7-native/native-static-${{ matrix.rid }}/link-tests/smoke-$name.exe"
+            if ($LASTEXITCODE -ne 0) { throw "Native $name probe failed: $LASTEXITCODE" }
+          }
+      - name: Publish NativeAOT consumer
+        shell: pwsh
+        run: |
+          dotnet publish artifacts/avalonia-smoke-src/AvaloniaStaticLinkSmoke.csproj -c Release -r '${{ matrix.rid }}' --configfile artifacts/avalonia-smoke-src/NuGet.config /p:PublishAot=true /p:SelfContained=true /p:PublishDir="$PWD/artifacts/smoke-${{ matrix.rid }}/" -bl:artifacts/windows-publish.binlog
+          if ($LASTEXITCODE -ne 0) { throw 'NativeAOT publish failed' }
+      - name: Run NativeAOT consumer on current Windows
+        if: ${{ matrix.rid != 'win-arm64' }}
+        shell: pwsh
+        run: |
+          $app = Resolve-Path 'artifacts/smoke-${{ matrix.rid }}/AvaloniaStaticLinkSmoke.exe'
+          $process = Start-Process $app -WorkingDirectory (Split-Path $app) -PassThru
+          if ($process.WaitForExit(15000)) {
+            if ($process.ExitCode -ne 0) { throw "NativeAOT app exited with $($process.ExitCode)" }
+          } else { Stop-Process -Id $process.Id -Force }
+      - name: Upload diagnostics and applications
+        if: ${{ always() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: windows-retest-${{ matrix.rid }}
+          path: |
+            artifacts/windows-publish.binlog
+            artifacts/smoke-${{ matrix.rid }}/**
+            artifacts/avalonia-smoke-src/obj/**/link.rsp

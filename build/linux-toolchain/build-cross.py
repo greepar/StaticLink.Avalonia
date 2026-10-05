@@ -46,6 +46,7 @@ def main():
     p.add_argument('--output', type=Path, required=True)
     p.add_argument('--jobs', type=int, default=4)
     p.add_argument('--configure-only', action='store_true')
+    p.add_argument('--windows7-compat', action='store_true', help='SkiaSharp 3 Windows x64/x86 native compatibility profile')
     p.add_argument('--component', choices=['all', 'skia'], default='all', help='Build Skia alone when validating a new SkiaSharp release')
     a = p.parse_args()
     if a.sources_manifest:
@@ -62,6 +63,8 @@ def main():
     for name in ('skia', 'angle', 'angle_gn', 'sdk', 'work', 'output', 'availability_source', 'mingw_headers'):
         setattr(a, name, getattr(a, name).resolve())
     lock = json.loads((a.source_lock or HERE / 'sources.lock.json').read_text())
+    if a.windows7_compat and (a.target not in ('win-x64', 'win-x86') or not lock['skiasharp_version'].startswith('3.')):
+        p.error('--windows7-compat requires SkiaSharp 3 and win-x64 or win-x86')
     for src, key in ((a.skia, 'skia_revision'), (a.angle, 'angle_revision')):
         revision = subprocess.check_output(['git', '-C', str(src), 'rev-parse', 'HEAD'], text=True).strip()
         if revision != lock[key]:
@@ -82,6 +85,8 @@ def main():
         if path.is_file() and (path.suffix in ('.py', '.in', '.patch', '.c') or path.name in ('cross-toolchain.lock.json', 'linux-sysroots.lock.json', 'linux-sysroots-musl.lock.json')):
             recipe.update(str(path.relative_to(HERE)).encode())
             recipe.update(path.read_bytes())
+    if a.windows7_compat:
+        recipe.update(b'windows7-compat-v1')
     variant = hashlib.sha256((json.dumps(lock, sort_keys=True) + recipe.hexdigest()).encode()).hexdigest()[:16]
     shared = {'angle_revision': lock['angle_revision'], 'recipe': recipe.hexdigest(), 'toolchain': json.loads((HERE / 'cross-toolchain.lock.json').read_text())}
     angle_variant = hashlib.sha256(json.dumps(shared, sort_keys=True).encode()).hexdigest()[:16]
@@ -93,6 +98,8 @@ def main():
              '--output', output, '--sdk', a.sdk, '--mingw-headers', a.mingw_headers]
         if target.startswith('linux'):
             command += ['--linux-sysroot', a.linux_sysroots / target, '--linux-headers', a.linux_headers]
+        if a.windows7_compat and target == a.target:
+            command += ['--windows7-compat']
         run(command)
     config = json.loads((tools / 'toolchain.json').read_text())
     zig = config['zig']

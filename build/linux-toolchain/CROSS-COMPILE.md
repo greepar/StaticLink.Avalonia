@@ -43,6 +43,23 @@ save the multi-gigabyte source trees or Zig global cache. ccache additionally
 checks compiler contents. Cold source downloads remain necessary on archive
 cache misses, and cache eviction can still require a rebuild.
 
+### SkiaSharp 3 Win7 native profile
+
+The default Windows profile is unchanged. `build-cross.py --windows7-compat`
+selects `windows.win7-gnu` for x64/x86, overrides newer GN Windows-version
+macros and enables ANGLE's `ANGLE_WINDOWS_NO_FUTEX` fallback. Other architectures
+and SkiaSharp 4 reject this profile. Generated manifests record the profile;
+build directories and Actions caches keep it separate from normal Windows.
+
+The release workflow exposes `windows7_compat`, default false. The dedicated
+`windows-static-retest` workflow can rebuild just the two Windows profiles and
+overlay them into a matching existing smoke package, keeping other RID archives
+intact. It checks known incompatible direct imports and runs native probes and
+NativeAOT consumers on Windows Server 2022. These checks are not Win7 execution
+tests: .NET 10 NativeAOT has its own OS requirements. Win7 SP1 deployment also
+needs a compatible UCRT installation. Validate the exported applications in an
+actual Win7 environment before claiming Win7 support.
+
 `build-cross.py` adapts declared GN capabilities, rejects unknown compiler flags,
 checks static targets, builds six archives and links raster and EGL/GLES probes.
 `package-zig.py` requires archive hashes and successful links before packaging.
