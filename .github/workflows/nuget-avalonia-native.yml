@@ -1,8 +1,6 @@
 name: staticlink-avalonia-native
 
 on:
-  schedule:
-    - cron: "17 3 * * *"
   workflow_dispatch:
     inputs:
       avalonia_version:
@@ -17,7 +15,7 @@ on:
       publish_to_nuget:
         description: Publish with NuGet Trusted Publishing after smoke tests
         required: true
-        default: true
+        default: false
         type: boolean
 
 jobs:

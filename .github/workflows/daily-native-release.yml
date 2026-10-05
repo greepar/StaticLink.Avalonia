@@ -1,0 +1,76 @@
+name: daily-native-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      force_build:
+        description: Build current stable versions even if already published
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: daily-native-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        branch: [skia3, skia4, avalonia-native]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.branch }}
+      - name: Check and dispatch this branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRACK_BRANCH: ${{ matrix.branch }}
+          FORCE_BUILD: ${{ inputs.force_build }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+
+          branch = os.environ["TRACK_BRANCH"]
+          force = os.environ["FORCE_BUILD"] == "true"
+
+          def dispatch(workflow, inputs):
+              payload = json.dumps({"ref": branch, "inputs": inputs})
+              subprocess.run(
+                  ["gh", "api", "--method", "POST",
+                   f"repos/{os.environ['GITHUB_REPOSITORY']}/actions/workflows/{workflow}/dispatches",
+                   "--input", "-"],
+                  input=payload, text=True, check=True,
+              )
+
+          if branch == "avalonia-native":
+              dispatch("nuget-avalonia-native.yml", {
+                  "force_build": force, "publish_to_nuget": False,
+              })
+          else:
+              command = ["python3", "scripts/check-upstream-releases.py"]
+              if force:
+                  command.append("--force")
+              subprocess.run(command, check=True)
+              for release in json.load(open("release-plan.json")):
+                  if release["ref"] != branch:
+                      raise SystemExit("Release track does not match the checked-out branch")
+                  dispatch("nuget-static-graphics.yml", {
+                      "skiasharp_version": release["skiasharp_version"],
+                      "publish_to_nuget": False, "publish_to_release": False,
+                  })
+                  print(f"Dispatched {release['package_version']} on {branch}")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && matrix.branch != 'avalonia-native' }}
+        with:
+          name: daily-release-plan-${{ matrix.branch }}
+          path: release-plan.json
+          if-no-files-found: warn
