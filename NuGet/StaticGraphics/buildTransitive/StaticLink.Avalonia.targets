@@ -163,8 +163,8 @@
         </ItemGroup>
         <Delete Files="@(_StaticLinkAvaloniaFilesToDelete)" TreatErrorsAsWarnings="true" />
     </Target>
-    <!-- NativeAOT supplies MSVC CRT/TLS startup. Keep MinGW helper routines,
-         but let MSVC own the process TLS directory and initialization. -->
+    <!-- NativeAOT supplies MSVC CRT startup. Keep MinGW helper routines,
+         but let MSVC own TLS initialization and Control Flow Guard pointers. -->
     <Target Name="StaticLinkAvaloniaPrepareMsvcRuntime"
             BeforeTargets="StaticLinkAvaloniaAddZigRuntime"
             Condition="'$(PublishAot)' == 'true' and $(RuntimeIdentifier.StartsWith('win-')) and Exists('$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/libmingw32.lib')">
@@ -173,7 +173,7 @@
         </PropertyGroup>
         <MakeDir Directories="$(IntermediateOutputPath)staticlink-msvc" />
         <Copy SourceFiles="$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/libmingw32.lib" DestinationFiles="$(_StaticLinkAvaloniaMsvcRuntime)" />
-        <Exec Command="llvm-ar d &quot;$(_StaticLinkAvaloniaMsvcRuntime)&quot; tlssup.obj" />
+        <Exec Command="llvm-ar d &quot;$(_StaticLinkAvaloniaMsvcRuntime)&quot; tlssup.obj mingw_cfguard_support.obj" />
     </Target>
     <!-- SetupOSSpecificProps snapshots NativeLibrary into LinkerArg. -->
     <Target Name="StaticLinkAvaloniaAddZigRuntime"
