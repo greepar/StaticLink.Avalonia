@@ -189,8 +189,8 @@ jobs:
             runner: windows-2022
             msvc_arch: x86
           - rid: win-arm64
-            runner: windows-2022
-            msvc_arch: amd64_arm64
+            runner: windows-11-arm
+            msvc_arch: arm64
           - rid: linux-x64
             runner: ubuntu-24.04
           - rid: linux-arm64
@@ -215,7 +215,7 @@ jobs:
         run: ./scripts/setup-msvc.ps1 -Architecture "${{ matrix.msvc_arch }}"
 
       - name: Install LLVM linker for Zig Windows archives
-        if: ${{ startsWith(matrix.rid, 'win-') }}
+        if: ${{ startsWith(matrix.rid, 'win-') && matrix.rid != 'win-arm64' }}
         shell: pwsh
         run: choco install llvm -y
 
@@ -308,7 +308,7 @@ jobs:
           }
 
       - name: Run Windows Avalonia smoke app
-        if: ${{ matrix.rid == 'win-x64' || matrix.rid == 'win-x86' }}
+        if: ${{ startsWith(matrix.rid, 'win-') }}
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"

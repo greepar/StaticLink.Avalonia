@@ -9,7 +9,7 @@ import platform
 import shutil
 import subprocess
 import sys
-from skia_compat import archive, configure, parse_args, repair_xps, repair_skcms
+from skia_compat import archive, configure, parse_args, repair_xps, repair_skcms, repair_windows_keepalive
 
 HERE = Path(__file__).resolve().parent
 
@@ -71,6 +71,7 @@ def main():
             raise SystemExit(f'{src}: expected {lock[key]}, got {revision}; update the lock and revalidate first')
     if 'skiasharp_build("SkiaSharp")' not in (a.skia / 'BUILD.gn').read_text():
         raise SystemExit('--skia must be the SkiaSharp-patched Skia source, not vanilla Google Skia')
+    repair_windows_keepalive(a.skia)
     a.work.mkdir(parents=True, exist_ok=True)
     a.output.mkdir(parents=True, exist_ok=True)
     windows = a.target.startswith('win')
@@ -235,12 +236,15 @@ def main():
     for source, name in files:
         dest = a.output / ('lib' + name + '.a')
         shutil.copy2(source, dest)
-        manifest['archives'][dest.name] = hashlib.sha256(dest.read_bytes()).hexdigest()
+    run([sys.executable, HERE / 'optimize-archives.py', '--directory', a.output])
     run([sys.executable, HERE / 'link-cross.py', '--toolchain', tools, '--skia', a.skia,
          '--angle', a.angle, '--libraries', a.output, '--output', a.output / 'link-tests', '--component', a.component])
     if a.target == 'win-x86':
         run([sys.executable, HERE / 'x86-thunks.py', '--source', a.skia.parent.parent,
              '--toolchain', tools, '--libraries', a.output])
+    run([sys.executable, HERE / 'optimize-archives.py', '--directory', a.output / 'zig-runtime', '--runtime'])
+    manifest['archives'] = {('lib' + name + '.a'): hashlib.sha256((a.output / ('lib' + name + '.a')).read_bytes()).hexdigest() for _, name in files}
+    manifest['release_archive_optimization'] = json.loads((a.output / 'archive-size-report.json').read_text())
     manifest['link_tests'] = 'passed; target runtime tests still required'
     (a.output / 'cross-build.json').write_text(json.dumps(manifest, indent=2) + '\n')
 
