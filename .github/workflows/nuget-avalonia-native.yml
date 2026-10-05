@@ -140,19 +140,8 @@ jobs:
           mkdir -p "$WORK_DIR" "$OUTPUT_DIR"
           docker run --rm --user "$(id -u):$(id -g)" \
             -e HOME=/tmp/staticlink-home -e RID -e AVALONIA_VERSION \
-            -v "$PWD:/src" -w /src --entrypoint bash "$TOOLCHAIN_IMAGE" -c '
-              set -euo pipefail
-              mkdir -p "$HOME"
-              src="/src/External/AvaloniaNative/.work/Avalonia-$AVALONIA_VERSION"
-              git clone --depth 1 --branch "$AVALONIA_VERSION" https://github.com/AvaloniaUI/Avalonia.git "$src"
-              if git -C "$src" config -f .gitmodules --get-regexp path | awk '{print $2}' | grep -qx external/Numerge; then
-                git -C "$src" submodule update --init --depth 1 external/Numerge
-              fi
-              python3 build/linux-toolchain/build-avalonia-native-cross.py \
-                --source "$src" --rid "$RID" --sdk /opt/macos-sdk/MacOSX15.5.sdk \
-                --work "/src/External/AvaloniaNative/.work/zig-$AVALONIA_VERSION-$RID" \
-                --output "/src/External/AvaloniaNative/$RID/native"
-            '
+            -v "$PWD:/src" -w /src --entrypoint bash "$TOOLCHAIN_IMAGE" \
+            scripts/build-avalonia-native-container.sh
 
       - name: Upload static AvaloniaNative
         uses: actions/upload-artifact@v4

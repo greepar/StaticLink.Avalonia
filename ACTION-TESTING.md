@@ -3,6 +3,13 @@
 Daily schedules are disabled during validation. No NuGet.org publication or
 GitHub Release is requested by the manual dispatcher on main.
 
+Before release builds, run nuget-static-graphics.yml on skia4 with
+environment_only=true. This checks the actual container's Python/depot_tools,
+.NET 8/10, SDKs, sysroots, and C/C++ compilation plus C executable linking for
+all nine RIDs. Download toolchain-environment-validation to inspect the report.
+The same environment gate runs before every graphics and native build and
+must pass before the toolchain image is published for release compilation.
+
 - skia3: nuget-static-graphics.yml; latest stable SkiaSharp 3.
 - skia4: nuget-static-graphics.yml; latest stable SkiaSharp 4.
 - avalonia-native: nuget-avalonia-native.yml; latest stable Avalonia 11 and 12.
@@ -29,4 +36,3 @@ run their own GitHub cron schedules. Publication remains an explicit opt-in.
 While publication is disabled, an unpublished package may be rebuilt on every
 check; add successful-run tracking before enabling artifact-only daily builds
 if avoiding repeated builds is required.
-
