@@ -163,8 +163,9 @@
         </ItemGroup>
         <Delete Files="@(_StaticLinkAvaloniaFilesToDelete)" TreatErrorsAsWarnings="true" />
     </Target>
+    <!-- SetupOSSpecificProps snapshots NativeLibrary into LinkerArg. -->
     <Target Name="StaticLinkAvaloniaAddZigRuntime"
-            BeforeTargets="LinkNative"
+            BeforeTargets="SetupOSSpecificProps"
             Condition="'$(PublishAot)' == 'true' and Exists('$(_StaticLinkAvaloniaNativeRoot)/zig-build.json')">
         <PropertyGroup Condition="$(RuntimeIdentifier.StartsWith('win-'))">
             <CppLinker>lld-link</CppLinker>
@@ -176,6 +177,21 @@
             <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libEGL_static.a" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libEGL_static.a')" />
             <NativeSystemLibrary Include="X11;Xext;xcb;wayland-client;wayland-egl;ffi" Condition="$(RuntimeIdentifier.StartsWith('linux-'))" />
             <LinkerArg Include="/lldmingw" Condition="$(RuntimeIdentifier.StartsWith('win-'))" />
+        </ItemGroup>
+    </Target>
+    <Target Name="StaticLinkAvaloniaUseLldCompatibleArguments"
+            BeforeTargets="LinkNative"
+            Condition="'$(PublishAot)' == 'true' and $(RuntimeIdentifier.StartsWith('win-')) and Exists('$(_StaticLinkAvaloniaNativeRoot)/zig-build.json')">
+        <!-- NativeAOT's Windows SDK chooses link.exe during evaluation.
+             Select LLD after setup and keep its supported argument set. -->
+        <PropertyGroup>
+            <CppLinker>lld-link</CppLinker>
+        </PropertyGroup>
+        <ItemGroup>
+            <LinkerArg Remove="@(LinkerArg)" Condition="$([System.String]::Copy('%(LinkerArg.Identity)').StartsWith('/SOURCELINK:'))" />
+            <_StaticLinkAvaloniaLldArg Include="@(LinkerArg->Replace(' /NOEXP ', ' '))" />
+            <LinkerArg Remove="@(LinkerArg)" />
+            <LinkerArg Include="@(_StaticLinkAvaloniaLldArg)" />
         </ItemGroup>
     </Target>
 </Project>

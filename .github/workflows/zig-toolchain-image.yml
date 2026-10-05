@@ -20,10 +20,14 @@ jobs:
   image:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    concurrency:
+      group: zig-toolchain-image-${{ github.repository }}
+      cancel-in-progress: false
+      queue: max
     outputs:
       image: ${{ steps.publish.outputs.image }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Publish or reuse exact toolchain image
         id: publish
         env:
@@ -32,16 +36,37 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           VALIDATION_RIDS: ${{ inputs.validation_rids || '[]' }}
           BASE_HASH: ${{ hashFiles('build/linux-toolchain/Dockerfile') }}
-          RECIPE_HASH: ${{ hashFiles('build/linux-toolchain/Dockerfile*', 'build/linux-toolchain/*.py', 'build/linux-toolchain/*.c', 'build/linux-toolchain/*.gn.in', 'build/linux-toolchain/*lock.json', 'build/linux-toolchain/versions/*.json', 'build/linux-toolchain/patches/**') }}
+          RECIPE_HASH: ${{ hashFiles('build/linux-toolchain/Dockerfile*', 'build/linux-toolchain/fetch-linux-sysroots.py', 'build/linux-toolchain/linux-sysroots*.lock.json', 'build/linux-toolchain/zig-cross.py', 'build/linux-toolchain/validate-toolchain.py', 'build/linux-toolchain/probe-cross.py') }}
         run: |
           set -euo pipefail
           printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
           repository="ghcr.io/${REPOSITORY,,}-zig"
           image="$repository:recipe-$RECIPE_HASH"
           base="$repository:debian12-$BASE_HASH"
+          # A registry/network/authentication failure is not a missing recipe.
+          pull_or_missing() {
+            local reference="$1" attempt log
+            log="$(mktemp)"
+            for attempt in 1 2 3; do
+              if docker pull "$reference" >"$log" 2>&1; then
+                cat "$log"
+                rm -f "$log"
+                return 0
+              fi
+              cat "$log" >&2
+              if grep -Eq 'manifest unknown|manifest .*not found' "$log"; then
+                rm -f "$log"
+                return 1
+              fi
+              if [ "$attempt" != 3 ]; then sleep 5; fi
+            done
+            rm -f "$log"
+            echo "Cannot access $reference; refusing to rebuild an existing image." >&2
+            exit 1
+          }
           built_image=false
-          if ! docker pull "$image"; then
-            if ! docker pull "$base"; then
+          if ! pull_or_missing "$image"; then
+            if ! pull_or_missing "$base"; then
               docker build --platform linux/amd64 \
                 --label "org.opencontainers.image.source=https://github.com/$REPOSITORY" \
                 -t "$base" build/linux-toolchain
@@ -71,7 +96,7 @@ jobs:
           echo "Toolchain: $digest" >> "$GITHUB_STEP_SUMMARY"
       - name: Upload environment validation report
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: toolchain-environment-validation
           path: artifacts/toolchain-environment/

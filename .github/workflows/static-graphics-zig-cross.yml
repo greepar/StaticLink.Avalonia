@@ -50,7 +50,7 @@ jobs:
       matrix:
         rid: ${{ fromJSON(inputs.rids || '["linux-x64","linux-arm64","linux-musl-x64","linux-musl-arm64","win-x64","win-x86","win-arm64","osx-x64","osx-arm64"]') }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Resolve immutable build inputs
         env:
           SOURCE_LOCK_JSON: ${{ inputs.source_lock }}
@@ -70,7 +70,7 @@ jobs:
       - name: Resolve target cache identity
         id: cache-key
         env:
-          RECIPE_HASH: ${{ hashFiles('build/linux-toolchain/**', 'scripts/prepare-cross-sources.sh', 'scripts/build-linux-static-graphics.sh', 'External/NativeStatic/patches/*.patch') }}
+          RECIPE_HASH: ${{ hashFiles('build/linux-toolchain/*.py', 'build/linux-toolchain/*.gn.in', 'build/linux-toolchain/*.c', 'build/linux-toolchain/cross-toolchain.lock.json', 'build/linux-toolchain/linux-sysroots*.lock.json', 'build/linux-toolchain/release.lock.json', 'build/linux-toolchain/patches/**', 'scripts/prepare-cross-sources.sh', 'scripts/build-linux-static-graphics.sh', 'External/NativeStatic/patches/*.patch') }}
           SKIASHARP_PROFILE: ${{ inputs.skiasharp_version }}
           CROSS_RID: ${{ matrix.rid }}
         run: |
@@ -79,7 +79,7 @@ jobs:
           echo "prefix=zig-debian12-v4-$SKIASHARP_PROFILE-$CROSS_RID-$identity-" >> "$GITHUB_OUTPUT"
       - name: Restore latest compatible target cache
         id: cache
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: External/NativeStatic/.work
           key: ${{ steps.cache-key.outputs.prefix }}${{ github.run_id }}-${{ github.run_attempt }}
@@ -120,12 +120,12 @@ jobs:
       - name: Save target progress even after build failure
         if: ${{ always() && steps.cache.outputs.cache-primary-key != '' && steps.build.outcome != '' && steps.build.outcome != 'skipped' && steps.cache.outputs.cache-hit != 'true' }}
         continue-on-error: true
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: External/NativeStatic/.work
           key: ${{ steps.cache.outputs.cache-primary-key }}
       - name: Upload archives, link tests and input manifest
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: ${{ inputs.artifact_prefix || 'native-static' }}-${{ matrix.rid }}
           path: External/NativeStatic/${{ matrix.rid }}/**

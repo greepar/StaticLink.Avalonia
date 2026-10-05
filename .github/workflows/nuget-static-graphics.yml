@@ -68,15 +68,15 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           dotnet-version: "10.0.302"
 
       - name: Download static archives
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           pattern: native-static-*
           path: External/NativeStatic
@@ -135,14 +135,14 @@ jobs:
           unzip -Z1 "$package" | grep -Fx 'buildTransitive/StaticLink.Avalonia.targets'
 
       - name: Upload release source lock
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: graphics-release-source-lock
           path: build/linux-toolchain/release.lock.json
           if-no-files-found: error
 
       - name: Upload NuGet artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: staticlink-avalonia-nuget
           path: |
@@ -181,13 +181,12 @@ jobs:
             avalonia_version: 11.3.14
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Setup MSVC environment
         if: ${{ startsWith(matrix.rid, 'win-') }}
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: ${{ matrix.msvc_arch }}
+        shell: pwsh
+        run: ./scripts/setup-msvc.ps1 -Architecture "${{ matrix.msvc_arch }}"
 
       - name: Install LLVM linker for Zig Windows archives
         if: ${{ startsWith(matrix.rid, 'win-') }}
@@ -201,12 +200,12 @@ jobs:
           sudo apt-get install -y clang lld xvfb zlib1g-dev libfontconfig1-dev libffi-dev libwayland-dev libx11-dev libxext-dev libxcb1-dev libfreetype6 libgl1 libice6 libsm6 libx11-6 libxcb1 libxcursor1 libxext6 libxfixes3 libxinerama1 libxrandr2 libxrender1 libxi6
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           dotnet-version: "10.0.302"
 
       - name: Download NuGet package
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: staticlink-avalonia-nuget
           path: artifacts/nuget
@@ -380,7 +379,7 @@ jobs:
 
       - name: Upload Avalonia smoke app
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: avalonia-smoke-${{ matrix.rid }}
           path: artifacts/smoke-${{ matrix.rid }}/**
@@ -392,15 +391,15 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           dotnet-version: "10.0.302"
 
       - name: Download NuGet package
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: staticlink-avalonia-nuget
           path: artifacts/nuget
@@ -479,7 +478,7 @@ jobs:
 
       - name: Upload macOS Metal smoke app
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: avalonia-smoke-osx-arm64-metal
           path: artifacts/smoke-osx-arm64-metal/**
@@ -496,12 +495,12 @@ jobs:
       - smoke-macos-metal
     steps:
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           dotnet-version: "10.0.302"
 
       - name: Download NuGet package
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: staticlink-avalonia-nuget
           path: artifacts/nuget
@@ -542,22 +541,22 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Download NuGet artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: staticlink-avalonia-nuget
           path: release-artifacts/staticlink-avalonia-nuget
 
       - name: Download release source lock
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: graphics-release-source-lock
           path: release-artifacts/source-lock
 
       - name: Download smoke artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           pattern: avalonia-smoke-*
           path: release-artifacts
