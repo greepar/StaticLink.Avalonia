@@ -27,7 +27,7 @@ public sealed partial class App : Application
                     if (!renderer.Equals("metal", StringComparison.OrdinalIgnoreCase) ||
                         backend.Equals("Metal", StringComparison.OrdinalIgnoreCase))
                     {
-                        Console.WriteLine($"STATICLINK_SMOKE_READY={renderer}");
+                        Console.WriteLine($"STATICLINK_SMOKE_READY={renderer};BACKEND={backend}");
                     }
                     else
                     {
