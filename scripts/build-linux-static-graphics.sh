@@ -12,6 +12,7 @@ BUILD_JOBS="${BUILD_JOBS:-$(nproc)}"
 ANGLE_PATCH_DIR="${ANGLE_PATCH_DIR:-$ROOT_DIR/External/NativeStatic/patches}"
 LLVM_AR="${LLVM_AR:-llvm-ar-19}"
 SKIA_DEPS_RETRIES="${SKIA_DEPS_RETRIES:-3}"
+SOURCE_DOWNLOAD_ATTEMPTS="${SOURCE_DOWNLOAD_ATTEMPTS:-5}"
 
 usage() {
   cat <<'USAGE'
@@ -27,6 +28,7 @@ Environment:
   BUILD_JOBS          Ninja parallelism. Default: nproc
   ANGLE_PATCH_DIR     ANGLE patch directory. Default: External/NativeStatic/patches
   LLVM_AR             llvm-ar command used to expand thin archives. Default: llvm-ar-19
+  SOURCE_DOWNLOAD_ATTEMPTS  Maximum attempts per source download. Default: 5
 USAGE
 }
 
@@ -144,22 +146,37 @@ PY
   export PYTHONPATH="$module_dir:${PYTHONPATH:-}"
 }
 
+retry_source_download() {
+  local attempt status
+  if [[ ! "$SOURCE_DOWNLOAD_ATTEMPTS" =~ ^[1-9][0-9]*$ ]]; then
+    echo "SOURCE_DOWNLOAD_ATTEMPTS must be a positive integer" >&2
+    return 1
+  fi
+  for ((attempt = 1; attempt <= SOURCE_DOWNLOAD_ATTEMPTS; attempt++)); do
+    if "$@"; then
+      return 0
+    else
+      status=$?
+    fi
+    if ((attempt == SOURCE_DOWNLOAD_ATTEMPTS)); then
+      echo "Source download failed after $attempt attempts; stopping" >&2
+      return "$status"
+    fi
+    echo "Source download failed ($attempt/$SOURCE_DOWNLOAD_ATTEMPTS); retrying in $((attempt * 10)) seconds" >&2
+    sleep "$((attempt * 10))"
+  done
+}
+
 sync_skiasharp() {
   local src="$WORK_DIR/SkiaSharp-$SKIASHARP_VERSION"
-  if [[ -n "${SKIASHARP_REVISION:-}" ]]; then
-    if [[ ! -d "$src/.git" ]]; then
-      git init "$src" >&2
-      git -C "$src" remote add origin https://github.com/mono/SkiaSharp.git
-    fi
-    git -C "$src" fetch --depth 1 origin "$SKIASHARP_REVISION"
-    git -C "$src" checkout --detach FETCH_HEAD >&2
-  elif [[ ! -d "$src/.git" ]]; then
-    git clone --depth 1 --branch "release/$SKIASHARP_VERSION" https://github.com/mono/SkiaSharp.git "$src"
-  else
-    git -C "$src" fetch --depth 1 origin "release/$SKIASHARP_VERSION"
-    git -C "$src" checkout -q FETCH_HEAD
+  local revision="${SKIASHARP_REVISION:-release/$SKIASHARP_VERSION}"
+  if [[ ! -d "$src/.git" ]]; then
+    git init "$src" >&2 || return $?
+    git -C "$src" remote add origin https://github.com/mono/SkiaSharp.git || return $?
   fi
-  git -C "$src" submodule update --init --depth 1 externals/skia >&2
+  retry_source_download git -C "$src" fetch --depth 1 origin "$revision" >&2 || return $?
+  git -C "$src" checkout --detach FETCH_HEAD >&2 || return $?
+  retry_source_download git -C "$src" submodule update --init --depth 1 externals/skia >&2 || return $?
   echo "$src"
 }
 
@@ -266,19 +283,13 @@ EOF_ARGS
 
 sync_angle() {
   local src="$WORK_DIR/ANGLE-$ANGLE_BRANCH"
-  if [[ -n "${ANGLE_REVISION:-}" ]]; then
-    if [[ ! -d "$src/.git" ]]; then
-      git init "$src" >&2
-      git -C "$src" remote add origin https://github.com/google/angle.git
-    fi
-    git -C "$src" fetch --depth 1 origin "$ANGLE_REVISION"
-    git -C "$src" checkout --detach FETCH_HEAD >&2
-  elif [[ ! -d "$src/.git" ]]; then
-    git clone --depth 1 --branch "chromium/$ANGLE_BRANCH" https://github.com/google/angle.git "$src"
-  else
-    git -C "$src" fetch --depth 1 origin "chromium/$ANGLE_BRANCH"
-    git -C "$src" checkout -q FETCH_HEAD
+  local revision="${ANGLE_REVISION:-chromium/$ANGLE_BRANCH}"
+  if [[ ! -d "$src/.git" ]]; then
+    git init "$src" >&2 || return $?
+    git -C "$src" remote add origin https://github.com/google/angle.git || return $?
   fi
+  retry_source_download git -C "$src" fetch --depth 1 origin "$revision" >&2 || return $?
+  git -C "$src" checkout --detach FETCH_HEAD >&2 || return $?
   echo "$src"
 }
 

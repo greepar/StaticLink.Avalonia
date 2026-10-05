@@ -67,9 +67,9 @@ def compiler(config, tool, incoming):
         "-F", config["sdk"] + "/System/Library/Frameworks", "-Wno-elaborated-enum-base",
     ] if "macos" in target else []
     if config.get('linux_abi_headers'):
-        args += ['-I' + config['linux_abi_headers']]
+        args += ['-idirafter', config['linux_abi_headers']]
     if config.get('linux_headers'):
-        args += ['-I' + config['linux_headers'], '-I' + config['linux_headers'] + '/freetype2']
+        args += ['-idirafter', config['linux_headers'], '-idirafter', config['linux_headers'] + '/freetype2']
     if config.get('linux_sysroot') and '-c' not in incoming and '-o' in incoming:
         root = Path(config['linux_sysroot'])
         cpu = 'x86_64' if target.startswith('x86_64') else 'aarch64'
@@ -173,7 +173,10 @@ def execute(config, tool, incoming):
                 inputs.append(flag)
         if not output:
             raise SystemExit("Darwin libtool adapter needs -o")
-        command = [config["zig"], "ar", "--format=darwin", "rcs", output, *inputs]
+        libtool = shutil.which('llvm-libtool-darwin') or shutil.which('llvm-libtool-darwin-16')
+        if not libtool:
+            raise SystemExit('The pinned image must provide llvm-libtool-darwin to flatten archive dependencies')
+        command = [libtool, '-static', '-o', output, *inputs]
     if tool in ('ar', 'libtool'):
         # Never leave a truncated archive behind when disk/network/job failures
         # interrupt archiving. GN response files contain a complete member list.
@@ -252,13 +255,22 @@ def prepare(args):
         abi = output / 'include-linux'
         abi.mkdir(exist_ok=True)
         cpu = 'x86_64' if config['target'].startswith('x86_64') else 'aarch64'
-        for name in ('ffi.h', 'ffitarget.h'):
+        for name in ('ffi.h', 'ffitarget.h', 'expat.h', 'expat_external.h'):
             for prefix in (root / 'usr/include' / (cpu + '-linux-gnu'), root / 'usr/include'):
                 src = prefix / name
                 if src.is_file():
                     (abi / name).write_bytes(src.read_bytes())
                     break
         config['linux_abi_headers'] = str(abi)
+        gl_headers = abi / 'GL'
+        gl_headers.mkdir(exist_ok=True)
+        for prefix in (root / 'usr/include/GL', Path('/usr/include/GL')):
+            for header in prefix.glob('*.h'):
+                destination = gl_headers / header.name
+                if not destination.exists():
+                    destination.write_bytes(header.read_bytes())
+        if not (gl_headers / 'glx.h').is_file():
+            raise SystemExit('The pinned Linux SDK/image lacks GL/glx.h')
         pc = output / 'pkg-config'
         dirs = [root / 'usr/lib' / (cpu + '-linux-gnu') / 'pkgconfig', root / 'usr/lib/pkgconfig', root / 'usr/share/pkgconfig']
         pc.write_text('#!/bin/sh\nexport PKG_CONFIG_SYSROOT_DIR=' + shlex.quote(str(root)) + '\nexport PKG_CONFIG_LIBDIR=' + shlex.quote(':'.join(map(str, dirs))) + '\nexec /usr/bin/pkg-config "$@"\n')
