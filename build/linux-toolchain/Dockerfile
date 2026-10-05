@@ -13,6 +13,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
 RUN rm -f /etc/apt/sources.list.d/debian.sources \
     && printf 'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/%s bookworm main\ndeb [check-valid-until=no] http://snapshot.debian.org/archive/debian-security/%s bookworm-security main\n' "$DEBIAN_SNAPSHOT" "$DEBIAN_SNAPSHOT" > /etc/apt/sources.list \
     && apt-get update \
+    && printf 'Package: *\nPin: origin "snapshot.debian.org"\nPin-Priority: 1001\n' > /etc/apt/preferences.d/staticlink-snapshot \
+    && apt-get dist-upgrade -y --allow-downgrades \
     && apt-get install -y --no-install-recommends \
        ca-certificates git curl python3 python3-six python3-requests python3-httplib2 \
        build-essential ccache clang-16 lld-16 llvm-16 libclang-rt-16-dev ninja-build \
