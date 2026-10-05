@@ -53,10 +53,20 @@ ensure_tools() {
 }
 
 ensure_depot_tools() {
-  local depot_dir="$WORK_DIR/depot_tools"
+  local depot_dir="${DEPOT_TOOLS_DIR:-$WORK_DIR/depot_tools}"
   local python_bin_dir
   python_bin_dir="$(dirname "$(command -v python3)")"
-  if [[ ! -d "$depot_dir/.git" ]]; then
+  if [[ -n "${DEPOT_TOOLS_REVISION:-}" ]]; then
+    if [[ ! -d "$depot_dir/.git" ]]; then
+      git init "$depot_dir"
+      git -C "$depot_dir" remote add origin https://chromium.googlesource.com/chromium/tools/depot_tools.git
+    fi
+    if [[ "$(git -C "$depot_dir" rev-parse HEAD 2>/dev/null || true)" != "$DEPOT_TOOLS_REVISION" ]]; then
+      git -C "$depot_dir" fetch --depth 1 origin "$DEPOT_TOOLS_REVISION"
+      git -C "$depot_dir" checkout --detach FETCH_HEAD
+    fi
+    export DEPOT_TOOLS_UPDATE=0
+  elif [[ ! -d "$depot_dir/.git" ]]; then
     git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git "$depot_dir"
   else
     git -C "$depot_dir" pull --ff-only
@@ -136,7 +146,14 @@ PY
 
 sync_skiasharp() {
   local src="$WORK_DIR/SkiaSharp-$SKIASHARP_VERSION"
-  if [[ ! -d "$src/.git" ]]; then
+  if [[ -n "${SKIASHARP_REVISION:-}" ]]; then
+    if [[ ! -d "$src/.git" ]]; then
+      git init "$src" >&2
+      git -C "$src" remote add origin https://github.com/mono/SkiaSharp.git
+    fi
+    git -C "$src" fetch --depth 1 origin "$SKIASHARP_REVISION"
+    git -C "$src" checkout --detach FETCH_HEAD >&2
+  elif [[ ! -d "$src/.git" ]]; then
     git clone --depth 1 --branch "release/$SKIASHARP_VERSION" https://github.com/mono/SkiaSharp.git "$src"
   else
     git -C "$src" fetch --depth 1 origin "release/$SKIASHARP_VERSION"
@@ -155,7 +172,7 @@ import sys
 
 path = pathlib.Path(sys.argv[1])
 text = path.read_text()
-deps_path = path.with_name("DEPS")
+deps_path = path.parent.parent / "DEPS"
 if deps_path.exists():
     deps = deps_path.read_text()
     deps = re.sub(r'^\s*"third_party/externals/dng_sdk"\s*:\s*"[^"]+",\s*\n', '', deps, flags=re.MULTILINE)
@@ -169,21 +186,21 @@ PY
 
 sync_skia_deps() {
   local skia_dir="$1/externals/skia"
-  if [[ ! -x "$skia_dir/bin/gn" ]]; then
-    prepare_skia_git_sync_deps "$skia_dir"
+  # GN can exist after a partial/failed sync; it is not a completion marker.
+  # git-sync-deps reuses already-correct checkouts and repairs missing dependencies.
+  prepare_skia_git_sync_deps "$skia_dir"
 
-    local attempt
-    for attempt in $(seq 1 "$SKIA_DEPS_RETRIES"); do
-      if python3 "$skia_dir/tools/git-sync-deps"; then
-        return 0
-      fi
-      if [[ "$attempt" == "$SKIA_DEPS_RETRIES" ]]; then
-        return 1
-      fi
-      echo "git-sync-deps failed; retrying ($attempt/$SKIA_DEPS_RETRIES)..." >&2
-      sleep 10
-    done
-  fi
+  local attempt
+  for attempt in $(seq 1 "$SKIA_DEPS_RETRIES"); do
+    if GIT_SYNC_DEPS_SKIP_EMSDK=1 python3 "$skia_dir/tools/git-sync-deps"; then
+      return 0
+    fi
+    if [[ "$attempt" == "$SKIA_DEPS_RETRIES" ]]; then
+      return 1
+    fi
+    echo "git-sync-deps failed; retrying ($attempt/$SKIA_DEPS_RETRIES)..." >&2
+    sleep 10
+  done
 }
 
 build_skia() {
@@ -233,7 +250,7 @@ extra_cflags_cc = [ "-frtti" ]
 extra_ldflags = [ "-static-libstdc++", "-static-libgcc" ]
 EOF_ARGS
 
-  (cd "$skia_dir" && "$skia_dir/bin/gn" gen "$out_dir")
+  python3 "$ROOT_DIR/build/linux-toolchain/skia_compat.py" --source "$skia_dir" --out "$out_dir"
   ninja -C "$out_dir" -j "$BUILD_JOBS" skia SkiaSharp HarfBuzzSharp
 
   copy_first_existing "$OUTPUT_DIR/libskia.a" \
@@ -249,7 +266,14 @@ EOF_ARGS
 
 sync_angle() {
   local src="$WORK_DIR/ANGLE-$ANGLE_BRANCH"
-  if [[ ! -d "$src/.git" ]]; then
+  if [[ -n "${ANGLE_REVISION:-}" ]]; then
+    if [[ ! -d "$src/.git" ]]; then
+      git init "$src" >&2
+      git -C "$src" remote add origin https://github.com/google/angle.git
+    fi
+    git -C "$src" fetch --depth 1 origin "$ANGLE_REVISION"
+    git -C "$src" checkout --detach FETCH_HEAD >&2
+  elif [[ ! -d "$src/.git" ]]; then
     git clone --depth 1 --branch "chromium/$ANGLE_BRANCH" https://github.com/google/angle.git "$src"
   else
     git -C "$src" fetch --depth 1 origin "chromium/$ANGLE_BRANCH"
@@ -544,4 +568,6 @@ main() {
   esac
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

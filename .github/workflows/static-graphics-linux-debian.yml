@@ -1,4 +1,4 @@
-name: static-graphics-macos-zig
+name: static-graphics-linux-debian-zig
 
 on:
   workflow_call:
@@ -25,4 +25,4 @@ jobs:
     with:
       skiasharp_version: ${{ inputs.skiasharp_version }}
       source_lock: ${{ inputs.source_lock || '' }}
-      rids: '["osx-x64","osx-arm64"]'
+      rids: '["linux-x64","linux-arm64","linux-musl-x64","linux-musl-arm64"]'

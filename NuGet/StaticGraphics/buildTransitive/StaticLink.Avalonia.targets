@@ -163,4 +163,19 @@
         </ItemGroup>
         <Delete Files="@(_StaticLinkAvaloniaFilesToDelete)" TreatErrorsAsWarnings="true" />
     </Target>
+    <Target Name="StaticLinkAvaloniaAddZigRuntime"
+            BeforeTargets="LinkNative"
+            Condition="'$(PublishAot)' == 'true' and Exists('$(_StaticLinkAvaloniaNativeRoot)/zig-build.json')">
+        <PropertyGroup Condition="$(RuntimeIdentifier.StartsWith('win-'))">
+            <CppLinker>lld-link</CppLinker>
+        </PropertyGroup>
+        <ItemGroup>
+            <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/*.lib" Condition="$(RuntimeIdentifier.StartsWith('win-'))" />
+            <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/*.a" Condition="!$(RuntimeIdentifier.StartsWith('win-'))" />
+            <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libEGL_static.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libEGL_static.lib')" />
+            <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libEGL_static.a" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libEGL_static.a')" />
+            <NativeSystemLibrary Include="X11;Xext;xcb;wayland-client;wayland-egl;ffi" Condition="$(RuntimeIdentifier.StartsWith('linux-'))" />
+            <LinkerArg Include="/lldmingw" Condition="$(RuntimeIdentifier.StartsWith('win-'))" />
+        </ItemGroup>
+    </Target>
 </Project>

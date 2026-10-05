@@ -19,6 +19,8 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <None Include="../../External/AvaloniaNative/osx-x64/native/avalonia-native-build.json" Pack="true" PackagePath="buildMetadata/osx-x64.json" />
+        <None Include="../../External/AvaloniaNative/osx-arm64/native/avalonia-native-build.json" Pack="true" PackagePath="buildMetadata/osx-arm64.json" />
         <None Include="README.md" Pack="true" PackagePath="README.md" />
         <None Include="lib/net8.0/_._" Pack="true" PackagePath="lib/net8.0/_._" />
         <None Include="buildTransitive/StaticLink.Avalonia.Native.props" Pack="true" PackagePath="buildTransitive/$(PackageId).props" />

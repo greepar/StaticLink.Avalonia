@@ -3,6 +3,14 @@ name: staticlink-avalonia
 on:
   workflow_dispatch:
     inputs:
+      skiasharp_version:
+        description: Stable SkiaSharp version from this branch major; empty uses the branch version
+        type: string
+        default: ''
+      native_package_revision:
+        description: Published AvaloniaNative revision for independent graphics smoke tests
+        type: string
+        default: '1'
       publish_to_nuget:
         description: Publish package to nuget.org
         required: true
@@ -11,7 +19,7 @@ on:
       publish_to_release:
         description: Publish NuGet package and smoke apps to GitHub Release
         required: true
-        default: true
+        default: false
         type: boolean
   push:
     tags:
@@ -20,46 +28,31 @@ on:
 env:
   DOTNET_ALPINE_IMAGE: mcr.microsoft.com/dotnet/sdk:10.0.302-alpine3.23
 
+concurrency:
+  group: graphics-${{ github.ref }}-${{ inputs.skiasharp_version }}
+  cancel-in-progress: false
+
 jobs:
   preflight:
     uses: ./.github/workflows/static-graphics-preflight.yml
+    with:
+      skiasharp_version: ${{ inputs.skiasharp_version }}
 
-  build-linux:
+  build-zig:
+    permissions:
+      contents: read
+      packages: write
     needs: preflight
-    uses: ./.github/workflows/static-graphics-linux.yml
+    uses: ./.github/workflows/static-graphics-zig-cross.yml
     with:
       skiasharp_version: ${{ needs.preflight.outputs.skiasharp_version }}
-      angle_branch: ${{ needs.preflight.outputs.angle_branch }}
-
-  build-musl:
-    needs: preflight
-    uses: ./.github/workflows/static-graphics-musl.yml
-    with:
-      skiasharp_version: ${{ needs.preflight.outputs.skiasharp_version }}
-      angle_branch: ${{ needs.preflight.outputs.angle_branch }}
-      dotnet_alpine_image: mcr.microsoft.com/dotnet/sdk:10.0.302-alpine3.23
-
-  build-windows:
-    needs: preflight
-    uses: ./.github/workflows/static-graphics-windows.yml
-    with:
-      skiasharp_version: ${{ needs.preflight.outputs.skiasharp_version }}
-      angle_branch: ${{ needs.preflight.outputs.angle_branch }}
-
-  build-macos:
-    needs: preflight
-    uses: ./.github/workflows/static-graphics-macos.yml
-    with:
-      skiasharp_version: ${{ needs.preflight.outputs.skiasharp_version }}
-      angle_branch: ${{ needs.preflight.outputs.angle_branch }}
+      source_lock: ${{ needs.preflight.outputs.source_lock }}
 
   pack:
     runs-on: ubuntu-24.04
     needs:
-      - build-linux
-      - build-musl
-      - build-windows
-      - build-macos
+      - preflight
+      - build-zig
     permissions:
       contents: read
     steps:
@@ -109,7 +102,13 @@ jobs:
           test -f External/NativeStatic/win-x86/native/skia_x86_stdcall_thunks.lib
 
       - name: Pack NuGet package
-        run: dotnet pack NuGet/StaticGraphics/StaticLink.Avalonia.csproj -c Release -o artifacts/nuget
+        env:
+          SOURCE_LOCK_JSON: ${{ needs.preflight.outputs.source_lock }}
+          PACKAGE_VERSION: ${{ needs.preflight.outputs.package_version }}
+          SKIASHARP_VERSION: ${{ needs.preflight.outputs.skiasharp_version }}
+        run: |
+          python3 scripts/apply-release-version.py
+          dotnet pack NuGet/StaticGraphics/StaticLink.Avalonia.csproj -c Release -o artifacts/nuget
 
       - name: Verify portable NuGet paths
         shell: bash
@@ -122,6 +121,13 @@ jobs:
           fi
           unzip -Z1 "$package" | grep -Fx 'buildTransitive/StaticLink.Avalonia.props'
           unzip -Z1 "$package" | grep -Fx 'buildTransitive/StaticLink.Avalonia.targets'
+
+      - name: Upload release source lock
+        uses: actions/upload-artifact@v4
+        with:
+          name: graphics-release-source-lock
+          path: build/linux-toolchain/release.lock.json
+          if-no-files-found: error
 
       - name: Upload NuGet artifact
         uses: actions/upload-artifact@v4
@@ -171,11 +177,16 @@ jobs:
         with:
           arch: ${{ matrix.msvc_arch }}
 
+      - name: Install LLVM linker for Zig Windows archives
+        if: ${{ startsWith(matrix.rid, 'win-') }}
+        shell: pwsh
+        run: choco install llvm -y
+
       - name: Install Linux publish dependencies
         if: ${{ startsWith(matrix.rid, 'linux-') && !startsWith(matrix.rid, 'linux-musl-') }}
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang lld xvfb zlib1g-dev libfontconfig1-dev libfreetype6 libgl1 libice6 libsm6 libx11-6 libxcb1 libxcursor1 libxext6 libxfixes3 libxinerama1 libxrandr2 libxrender1 libxi6
+          sudo apt-get install -y clang lld xvfb zlib1g-dev libfontconfig1-dev libffi-dev libwayland-dev libx11-dev libxext-dev libxcb1-dev libfreetype6 libgl1 libice6 libsm6 libx11-6 libxcb1 libxcursor1 libxext6 libxfixes3 libxinerama1 libxrandr2 libxrender1 libxi6
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -200,7 +211,9 @@ jobs:
           $avaloniaVersion = "${{ matrix.avalonia_version }}"
           if (-not $avaloniaVersion) { $avaloniaVersion = "11.3.14" }
           $projectDir = Join-Path $PWD "artifacts/avalonia-smoke-src"
-          pwsh ./scripts/create-avalonia-smoke.ps1 -ProjectDir $projectDir -NuGetSource (Resolve-Path "artifacts/nuget") -StaticLinkVersion $version -AvaloniaVersion $avaloniaVersion
+          $nativeVersion = ""
+          if ("${{ matrix.rid }}".StartsWith("osx-")) { $nativeVersion = "$avaloniaVersion.${{ inputs.native_package_revision || '1' }}" }
+          pwsh ./scripts/create-avalonia-smoke.ps1 -ProjectDir $projectDir -NuGetSource (Resolve-Path "artifacts/nuget") -StaticLinkVersion $version -AvaloniaVersion $avaloniaVersion -StaticLinkNativeVersion $nativeVersion
           dotnet publish (Join-Path $projectDir "AvaloniaStaticLinkSmoke.csproj") `
             -c Release `
             -r "${{ matrix.rid }}" `
@@ -226,7 +239,7 @@ jobs:
             -v "${{ github.workspace }}:/workspace" `
             -w /workspace `
             "${{ env.DOTNET_ALPINE_IMAGE }}" `
-            sh -c "apk add --no-cache clang lld build-base zlib-dev fontconfig-dev && dotnet publish /workspace/artifacts/avalonia-smoke-src/AvaloniaStaticLinkSmoke.csproj -c Release -r ${{ matrix.rid }} --configfile /workspace/artifacts/avalonia-smoke-src/NuGet.config /p:PublishAot=true /p:SelfContained=true /p:PublishSingleFile=true /p:StripSymbols=true /p:PublishDir=/workspace/artifacts/smoke-${{ matrix.rid }}/"
+            sh -c "apk add --no-cache clang lld build-base zlib-dev fontconfig-dev libffi-dev wayland-dev libx11-dev libxext-dev libxcb-dev && dotnet publish /workspace/artifacts/avalonia-smoke-src/AvaloniaStaticLinkSmoke.csproj -c Release -r ${{ matrix.rid }} --configfile /workspace/artifacts/avalonia-smoke-src/NuGet.config /p:PublishAot=true /p:SelfContained=true /p:PublishSingleFile=true /p:StripSymbols=true /p:PublishDir=/workspace/artifacts/smoke-${{ matrix.rid }}/"
 
       - name: Verify no dynamic graphics libraries remain
         shell: pwsh
@@ -354,11 +367,12 @@ jobs:
           PY
 
       - name: Upload Avalonia smoke app
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: avalonia-smoke-${{ matrix.rid }}
           path: artifacts/smoke-${{ matrix.rid }}/**
-          if-no-files-found: error
+          if-no-files-found: warn
 
   smoke-macos-metal:
     runs-on: macos-15
@@ -392,7 +406,7 @@ jobs:
             -NuGetSource (Resolve-Path "artifacts/nuget") `
             -StaticLinkVersion $Matches[1] `
             -AvaloniaVersion "12.1.0" `
-            -StaticLinkNativeVersion "12.1.0.1"
+            -StaticLinkNativeVersion "12.1.0.${{ inputs.native_package_revision || '1' }}"
           dotnet publish (Join-Path $projectDir "AvaloniaStaticLinkSmoke.csproj") `
             -c Release `
             -r osx-arm64 `
@@ -451,7 +465,18 @@ jobs:
                   raise SystemExit(f"Avalonia {renderer} smoke app failed with exit code {result.returncode}.")
           PY
 
+      - name: Upload macOS Metal smoke app
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: avalonia-smoke-osx-arm64-metal
+          path: artifacts/smoke-osx-arm64-metal/**
+          if-no-files-found: warn
+
   publish-nuget:
+    permissions:
+      contents: read
+      id-token: write
     runs-on: ubuntu-24.04
     needs:
       - pack
@@ -469,14 +494,21 @@ jobs:
           name: staticlink-avalonia-nuget
           path: artifacts/nuget
 
+      - name: NuGet Trusted Publishing login
+        id: login
+        if: ${{ vars.NUGET_USER != '' && (startsWith(github.ref, 'refs/tags/staticlink-avalonia-v') || inputs.publish_to_nuget == true) }}
+        uses: NuGet/login@v1
+        with:
+          user: ${{ vars.NUGET_USER }}
+
       - name: Publish to nuget.org
         if: ${{ startsWith(github.ref, 'refs/tags/staticlink-avalonia-v') || (github.event_name == 'workflow_dispatch' && inputs.publish_to_nuget == true) }}
         env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY || secrets.NUGET_API_KEY }}
         run: |
           if [ -z "$NUGET_API_KEY" ]; then
-            echo "NUGET_API_KEY secret is not configured. Skipping publish."
-            exit 0
+            echo "NUGET_API_KEY secret is not configured." >&2
+            exit 1
           fi
 
           for package in artifacts/nuget/*.nupkg; do
@@ -506,6 +538,12 @@ jobs:
           name: staticlink-avalonia-nuget
           path: release-artifacts/staticlink-avalonia-nuget
 
+      - name: Download release source lock
+        uses: actions/download-artifact@v4
+        with:
+          name: graphics-release-source-lock
+          path: release-artifacts/source-lock
+
       - name: Download smoke artifacts
         uses: actions/download-artifact@v4
         with:
@@ -516,6 +554,7 @@ jobs:
       - name: Prepare release files
         run: |
           mkdir -p release-files
+          cp release-artifacts/source-lock/release.lock.json release-files/
           find release-artifacts/staticlink-avalonia-nuget -type f \( -name '*.nupkg' -o -name '*.snupkg' \) -exec cp {} release-files/ \;
           for dir in release-artifacts/avalonia-smoke-*; do
             [ -d "$dir" ] || continue

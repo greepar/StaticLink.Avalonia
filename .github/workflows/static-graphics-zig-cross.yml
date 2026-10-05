@@ -1,0 +1,111 @@
+name: static-graphics-zig-cross-debian12
+
+# All native archives are compiled with Zig on Linux; platform runners validate consumer apps.
+on:
+  workflow_call:
+    inputs:
+      skiasharp_version:
+        type: string
+        required: true
+      toolchain_image:
+        type: string
+        default: ''
+      rids:
+        type: string
+        default: '["linux-x64","linux-arm64","linux-musl-x64","linux-musl-arm64","win-x64","win-x86","win-arm64","osx-x64","osx-arm64"]'
+      artifact_prefix:
+        type: string
+        default: native-static
+      source_lock:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      skiasharp_version:
+        description: Locked SkiaSharp release profile
+        type: string
+        default: '4.150.1'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    if: ${{ inputs.toolchain_image == '' }}
+    uses: ./.github/workflows/zig-toolchain-image.yml
+
+  build:
+    needs: image
+    if: ${{ always() && (needs.image.result == 'success' || inputs.toolchain_image != '') }}
+    permissions:
+      contents: read
+      packages: read
+    env:
+      TOOLCHAIN_IMAGE: ${{ inputs.toolchain_image || needs.image.outputs.image }}
+    timeout-minutes: 180
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        rid: ${{ fromJSON(inputs.rids || '["linux-x64","linux-arm64","linux-musl-x64","linux-musl-arm64","win-x64","win-x86","win-arm64","osx-x64","osx-arm64"]') }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Resolve immutable build inputs
+        env:
+          SOURCE_LOCK_JSON: ${{ inputs.source_lock }}
+          REQUESTED_VERSION: ${{ inputs.skiasharp_version }}
+        run: |
+          if [ -n "$SOURCE_LOCK_JSON" ]; then
+            python3 - <<'PY'
+          import json, os, pathlib
+          lock = json.loads(os.environ['SOURCE_LOCK_JSON'])
+          if lock['skiasharp_version'] != os.environ['REQUESTED_VERSION']:
+              raise SystemExit('Source lock does not match requested version')
+          pathlib.Path('build/linux-toolchain/release.lock.json').write_text(json.dumps(lock, indent=2) + '\n')
+          PY
+          else
+            python3 scripts/resolve-release-lock.py --version "$REQUESTED_VERSION"
+          fi
+      - name: Restore exact target cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: External/NativeStatic/.work
+          key: zig-debian12-v3-${{ inputs.skiasharp_version }}-${{ matrix.rid }}-${{ hashFiles('build/linux-toolchain/**', 'scripts/prepare-cross-sources.sh', 'scripts/build-linux-static-graphics.sh', 'External/NativeStatic/patches/*.patch') }}
+      - name: Pull immutable toolchain image
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+          docker pull "$TOOLCHAIN_IMAGE"
+      - name: Prepare locked sources and build native libraries
+        env:
+          CROSS_RID: ${{ matrix.rid }}
+          SKIASHARP_PROFILE: ${{ inputs.skiasharp_version }}
+        run: |
+          mkdir -p External/NativeStatic/.work/home
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -e HOME=/src/External/NativeStatic/.work/home -e CROSS_RID -e SKIASHARP_PROFILE \
+            -e CCACHE_DIR=/src/External/NativeStatic/.work/ccache -e CCACHE_MAXSIZE=1G \
+            -e ZIG_GLOBAL_CACHE_DIR=/src/External/NativeStatic/.work/zig-global \
+            -v "$PWD:/src" -w /src --entrypoint bash "$TOOLCHAIN_IMAGE" -c '
+              set -euo pipefail
+              export SOURCE_LOCK="/src/build/linux-toolchain/release.lock.json"
+              source scripts/prepare-cross-sources.sh
+              python3 build/linux-toolchain/build-cross.py \
+                --target "$CROSS_RID" \
+                --sources-manifest "$WORK_DIR/cross-sources.json" \
+                --work /src/External/NativeStatic/.work/toolchains \
+                --output "/src/External/NativeStatic/zig-cross/$SKIASHARP_PROFILE/$CROSS_RID" --jobs 4
+              python3 build/linux-toolchain/package-zig.py \
+                --rid "$CROSS_RID" \
+                --input "/src/External/NativeStatic/zig-cross/$SKIASHARP_PROFILE/$CROSS_RID" \
+                --output "/src/External/NativeStatic/$CROSS_RID/native"
+            '
+      - name: Upload archives, link tests and input manifest
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ inputs.artifact_prefix || 'native-static' }}-${{ matrix.rid }}
+          path: External/NativeStatic/${{ matrix.rid }}/**
+          if-no-files-found: error
