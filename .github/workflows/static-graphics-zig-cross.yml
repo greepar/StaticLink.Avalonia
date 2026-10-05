@@ -98,7 +98,7 @@ jobs:
           restore-keys: |
             ${{ steps.cache-key.outputs.prefix }}
       - name: Pull immutable toolchain image
-        if: ${{ steps.native-cache.outputs.cache-hit != 'true' }}
+        if: ${{ steps.native-cache.outputs.cache-hit != 'true' || (inputs.windows7_compat && (matrix.rid == 'win-x64' || matrix.rid == 'win-x86')) }}
         env:
           GH_TOKEN: ${{ github.token }}
           ACTOR: ${{ github.actor }}
@@ -156,3 +156,16 @@ jobs:
           name: ${{ inputs.artifact_prefix || 'native-static' }}-${{ matrix.rid }}
           path: External/NativeStatic/${{ matrix.rid }}/**
           if-no-files-found: error
+      - name: Compile Win7 C++ runtime initialization fixture
+        if: ${{ inputs.windows7_compat && (matrix.rid == 'win-x64' || matrix.rid == 'win-x86') }}
+        env:
+          CROSS_RID: ${{ matrix.rid }}
+        run: |
+          target=$(python3 -c 'import json,os; print(json.load(open("External/NativeStatic/"+os.environ["CROSS_RID"]+"/native/zig-build.json"))["toolchain"]["target"])')
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src --entrypoint zig "$TOOLCHAIN_IMAGE" c++ -target "$target" -O2 -c Smoke/CppRuntimeProbe/probe.cpp -o "External/NativeStatic/$CROSS_RID/link-tests/cpp-runtime-probe.obj"
+      - name: Upload Win7 C++ runtime initialization fixture
+        if: ${{ inputs.windows7_compat && (matrix.rid == 'win-x64' || matrix.rid == 'win-x86') }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: cpp-runtime-probe-${{ matrix.rid }}
+          path: External/NativeStatic/${{ matrix.rid }}/link-tests/cpp-runtime-probe.obj

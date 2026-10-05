@@ -184,6 +184,17 @@
         </ItemGroup>
     </Target>
     <!-- SetupOSSpecificProps snapshots NativeLibrary into LinkerArg. -->
+    <Target Name="StaticLinkAvaloniaPrepareCppInitializers"
+            BeforeTargets="StaticLinkAvaloniaAddZigRuntime"
+            Condition="'$(PublishAot)' == 'true' and $(RuntimeIdentifier.StartsWith('win-')) and Exists('$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/c++.lib')">
+        <PropertyGroup>
+            <_StaticLinkAvaloniaMsvcCpp>$(IntermediateOutputPath)staticlink-msvc/c++.lib</_StaticLinkAvaloniaMsvcCpp>
+        </PropertyGroup>
+        <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)StaticLink.Avalonia.CppInitializers.ps1&quot; -InputLibrary &quot;$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/c++.lib&quot; -OutputLibrary &quot;$(_StaticLinkAvaloniaMsvcCpp)&quot;" />
+        <ItemGroup>
+            <FileWrites Include="$(_StaticLinkAvaloniaMsvcCpp)" />
+        </ItemGroup>
+    </Target>
     <Target Name="StaticLinkAvaloniaAddZigRuntime"
             BeforeTargets="SetupOSSpecificProps"
             Condition="'$(PublishAot)' == 'true' and Exists('$(_StaticLinkAvaloniaNativeRoot)/zig-build.json')">
@@ -193,7 +204,7 @@
         <ItemGroup>
             <!-- Use Zig's static C++ implementation, but use the consumer's
                  Windows SDK import libraries and MSVC's UCRT startup helpers. -->
-            <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/c++.lib;$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/c++abi.lib;$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/compiler_rt.lib" Condition="$(RuntimeIdentifier.StartsWith('win-'))" />
+            <NativeLibrary Include="$(_StaticLinkAvaloniaMsvcCpp);$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/c++abi.lib;$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/compiler_rt.lib" Condition="$(RuntimeIdentifier.StartsWith('win-'))" />
             <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/unwind.lib" Condition="$(RuntimeIdentifier.StartsWith('win-')) and '$(RuntimeIdentifier)' != 'win-x86'" />
             <NativeLibrary Include="$(_StaticLinkAvaloniaMsvcUnwind)" Condition="'$(RuntimeIdentifier)' == 'win-x86'" />
             <NativeLibrary Include="ucrt.lib;libvcruntime.lib;msvcrt.lib" Condition="$(RuntimeIdentifier.StartsWith('win-'))" />

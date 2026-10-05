@@ -80,6 +80,12 @@ jobs:
         with:
           pattern: native-static-win-*
           path: artifacts/win7-native
+      - name: Download C++ runtime fixture
+        if: ${{ inputs.windows7_compat }}
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: cpp-runtime-probe-${{ matrix.rid }}
+          path: artifacts/cpp-runtime-probe
       - name: Overlay targets and optional native profile
         shell: pwsh
         run: |
@@ -99,6 +105,41 @@ jobs:
             & "./artifacts/win7-native/native-static-${{ matrix.rid }}/link-tests/smoke-$name.exe"
             if ($LASTEXITCODE -ne 0) { throw "Native $name probe failed: $LASTEXITCODE" }
           }
+      - name: Verify C++ clock initialization through NativeAOT
+        if: ${{ inputs.windows7_compat }}
+        shell: pwsh
+        run: |
+          $package = Get-ChildItem artifacts/nuget -Filter 'StaticLink.Avalonia.*.nupkg' | Where-Object { $_.Name -notlike 'StaticLink.Avalonia.Native.*' } | Select-Object -First 1
+          $version = $package.BaseName.Substring('StaticLink.Avalonia.'.Length)
+          $obj = (Resolve-Path artifacts/cpp-runtime-probe/cpp-runtime-probe.obj).Path
+          New-Item -ItemType Directory -Force artifacts/cpp-runtime-src | Out-Null
+          @"
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><PublishAot>true</PublishAot></PropertyGroup>
+            <ItemGroup>
+              <PackageReference Include="StaticLink.Avalonia" Version="$version" />
+              <DirectPInvoke Include="staticlink_runtime_probe" />
+              <NativeLibrary Include="$obj" />
+            </ItemGroup>
+          </Project>
+          "@ | Set-Content artifacts/cpp-runtime-src/CppRuntimeProbe.csproj
+          @'
+          using System;
+          using System.Runtime.InteropServices;
+          class Program {
+            [DllImport("staticlink_runtime_probe", EntryPoint="staticlink_cpp_runtime_probe", CallingConvention=CallingConvention.Cdecl)]
+            static extern long Probe();
+            static void Main() {
+              long timestamp = Probe();
+              if (timestamp < 1577836800) throw new Exception("C++ clock initialization failed: " + timestamp);
+              Console.WriteLine("C++ clock and mutex passed: " + timestamp);
+            }
+          }
+          '@ | Set-Content artifacts/cpp-runtime-src/Program.cs
+          dotnet publish artifacts/cpp-runtime-src/CppRuntimeProbe.csproj -c Release -r '${{ matrix.rid }}' --configfile artifacts/avalonia-smoke-src/NuGet.config /p:PublishDir="$PWD/artifacts/cpp-runtime-app/" -bl:artifacts/cpp-runtime-publish.binlog
+          if ($LASTEXITCODE -ne 0) { throw 'C++ runtime NativeAOT publish failed' }
+          & ./artifacts/cpp-runtime-app/CppRuntimeProbe.exe
+          if ($LASTEXITCODE -ne 0) { throw 'C++ runtime NativeAOT execution failed' }
       - name: Publish NativeAOT consumer
         shell: pwsh
         run: |
@@ -119,6 +160,9 @@ jobs:
         with:
           name: windows-retest-${{ matrix.rid }}
           path: |
+            artifacts/cpp-runtime-publish.binlog
+            artifacts/cpp-runtime-app/**
+            artifacts/cpp-runtime-src/obj/**/link.rsp
             artifacts/windows-publish.binlog
             artifacts/smoke-${{ matrix.rid }}/**
             artifacts/avalonia-smoke-src/obj/**/link.rsp
