@@ -1,6 +1,11 @@
 name: windows-static-retest
 
 on:
+  workflow_call:
+    inputs:
+      baseline_run_id:
+        type: string
+        required: true
   workflow_dispatch:
     inputs:
       baseline_run_id:

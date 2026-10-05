@@ -3,6 +3,10 @@ name: staticlink-avalonia
 on:
   workflow_dispatch:
     inputs:
+      windows_retest_run_id:
+        description: Reuse this previous run's NuGet artifact for Windows-only linker/runtime tests
+        type: string
+        default: ''
       environment_only:
         description: Validate the complete toolchain container without building release libraries
         type: boolean
@@ -37,14 +41,25 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  windows-retest:
+    if: ${{ inputs.windows_retest_run_id != '' }}
+    permissions:
+      contents: read
+      actions: read
+      packages: write
+    uses: ./.github/workflows/windows-static-smoke.yml
+    with:
+      baseline_run_id: ${{ inputs.windows_retest_run_id }}
+
   environment:
+    if: ${{ inputs.windows_retest_run_id == '' }}
     permissions:
       contents: read
       packages: write
     uses: ./.github/workflows/zig-toolchain-image.yml
 
   preflight:
-    if: ${{ inputs.environment_only != true }}
+    if: ${{ inputs.environment_only != true && inputs.windows_retest_run_id == '' }}
     uses: ./.github/workflows/static-graphics-preflight.yml
     with:
       skiasharp_version: ${{ inputs.skiasharp_version }}
