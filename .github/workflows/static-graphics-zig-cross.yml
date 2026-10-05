@@ -67,11 +67,24 @@ jobs:
           else
             python3 scripts/resolve-release-lock.py --version "$REQUESTED_VERSION"
           fi
-      - name: Restore exact target cache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      - name: Resolve target cache identity
+        id: cache-key
+        env:
+          RECIPE_HASH: ${{ hashFiles('build/linux-toolchain/**', 'scripts/prepare-cross-sources.sh', 'scripts/build-linux-static-graphics.sh', 'External/NativeStatic/patches/*.patch') }}
+          SKIASHARP_PROFILE: ${{ inputs.skiasharp_version }}
+          CROSS_RID: ${{ matrix.rid }}
+        run: |
+          set -euo pipefail
+          identity="$(printf '%s\n' "$TOOLCHAIN_IMAGE" "$RECIPE_HASH" | sha256sum | cut -d' ' -f1)"
+          echo "prefix=zig-debian12-v4-$SKIASHARP_PROFILE-$CROSS_RID-$identity-" >> "$GITHUB_OUTPUT"
+      - name: Restore latest compatible target cache
+        id: cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: External/NativeStatic/.work
-          key: zig-debian12-v3-${{ inputs.skiasharp_version }}-${{ matrix.rid }}-${{ hashFiles('build/linux-toolchain/**', 'scripts/prepare-cross-sources.sh', 'scripts/build-linux-static-graphics.sh', 'External/NativeStatic/patches/*.patch') }}
+          key: ${{ steps.cache-key.outputs.prefix }}${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ${{ steps.cache-key.outputs.prefix }}
       - name: Pull immutable toolchain image
         env:
           GH_TOKEN: ${{ github.token }}
@@ -80,6 +93,7 @@ jobs:
           printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
           docker pull "$TOOLCHAIN_IMAGE"
       - name: Prepare locked sources and build native libraries
+        id: build
         env:
           CROSS_RID: ${{ matrix.rid }}
           SKIASHARP_PROFILE: ${{ inputs.skiasharp_version }}
@@ -103,6 +117,13 @@ jobs:
                 --input "/src/External/NativeStatic/zig-cross/$SKIASHARP_PROFILE/$CROSS_RID" \
                 --output "/src/External/NativeStatic/$CROSS_RID/native"
             '
+      - name: Save target progress even after build failure
+        if: ${{ always() && steps.cache.outputs.cache-primary-key != '' && steps.build.outcome != '' && steps.build.outcome != 'skipped' && steps.cache.outputs.cache-hit != 'true' }}
+        continue-on-error: true
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: External/NativeStatic/.work
+          key: ${{ steps.cache.outputs.cache-primary-key }}
       - name: Upload archives, link tests and input manifest
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
