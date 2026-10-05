@@ -12,6 +12,9 @@ p.add_argument('--targets', type=Path, required=True)
 p.add_argument('--native-root', type=Path)
 a = p.parse_args()
 replacements = {'buildTransitive/StaticLink.Avalonia.targets': a.targets}
+helper = a.targets.with_name('StaticLink.Avalonia.SafeSeh.ps1')
+if helper.is_file():
+    replacements['buildTransitive/' + helper.name] = helper
 if a.native_root:
     with zipfile.ZipFile(a.package) as package:
         baseline = json.loads(package.read('buildMetadata/sources.lock.json'))
