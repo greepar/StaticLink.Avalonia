@@ -26,9 +26,9 @@ ensure_depot_tools
 initialize_depot_tools_system_python "$DEPOT_TOOLS_DIR"
 patch_depot_tools_python_deps "$DEPOT_TOOLS_DIR"
 export VPYTHON_BYPASS="manually managed python not supported by chrome operations"
-skia_sharp="$(sync_skiasharp)"
-python3 "$SCRIPT_ROOT/build/linux-toolchain/sync-skia-deps.py" --source "$skia_sharp/externals/skia" --cache "$SCRIPT_ROOT/External/NativeStatic/.work/skia-deps"
-angle="$(sync_angle)"
+skia_sharp="$(sync_skiasharp)" || exit $?
+retry_source_download python3 "$SCRIPT_ROOT/build/linux-toolchain/sync-skia-deps.py" --source "$skia_sharp/externals/skia" --cache "$SCRIPT_ROOT/External/NativeStatic/.work/skia-deps"
+angle="$(sync_angle)" || exit $?
 project_patch="$SCRIPT_ROOT/External/NativeStatic/patches/angle-chromium-$ANGLE_BRANCH.patch"
 if git -C "$angle" apply --reverse --check "$project_patch" >/dev/null 2>&1; then
   :
@@ -50,7 +50,7 @@ target_os = ["linux", "win", "mac"]
 PY
 # Zig and the image's SDKs supply the compiler/runtime; skip native Xcode/MSVC
 # setup hooks while retaining the pinned source dependencies for every target.
-(cd "$angle" && gclient sync --nohooks --force)
+(cd "$angle" && retry_source_download gclient sync --nohooks --force)
 python3 - "$WORK_DIR/cross-sources.json" "$skia_sharp/externals/skia" "$angle" "$SOURCE_LOCK" <<'PY'
 import json, sys
 from pathlib import Path

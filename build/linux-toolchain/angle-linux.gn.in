@@ -21,3 +21,4 @@ clang_version = "19"
 
 # Chromium UI/ATK is not part of the standalone ANGLE library targets.
 use_glib = false
+use_libpci = false
