@@ -1,0 +1,73 @@
+name: windows-static-retest
+
+on:
+  workflow_dispatch:
+    inputs:
+      baseline_run_id:
+        description: Previous run containing the matching staticlink-avalonia-nuget artifact
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+  packages: write
+
+jobs:
+  smoke:
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        rid: [win-x64, win-x86, win-arm64]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Set up MSVC
+        shell: pwsh
+        run: ./scripts/setup-msvc.ps1 -Architecture ('${{ matrix.rid }}'.Substring(4))
+      - name: Install LLVM
+        shell: pwsh
+        run: choco install llvm -y
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: '10.0.302'
+      - name: Download existing package
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: staticlink-avalonia-nuget
+          path: artifacts/nuget
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.baseline_run_id }}
+      - name: Overlay targets and optional native profile
+        shell: pwsh
+        run: |
+          $package = Get-ChildItem artifacts/nuget -Filter 'StaticLink.Avalonia.*.nupkg' | Where-Object { $_.Name -notlike 'StaticLink.Avalonia.Native.*' } | Select-Object -First 1
+          if (-not $package) { throw 'Baseline NuGet package missing' }
+          $args = @('--package', $package.FullName, '--targets', 'NuGet/StaticGraphics/buildTransitive/StaticLink.Avalonia.targets')
+          python scripts/overlay-smoke-package.py @args
+          if ($LASTEXITCODE -ne 0) { throw 'Package overlay failed' }
+          $version = $package.BaseName.Substring('StaticLink.Avalonia.'.Length)
+          ./scripts/create-avalonia-smoke.ps1 -ProjectDir artifacts/avalonia-smoke-src -NuGetSource (Resolve-Path artifacts/nuget) -StaticLinkVersion $version
+      - name: Publish NativeAOT consumer
+        shell: pwsh
+        run: |
+          dotnet publish artifacts/avalonia-smoke-src/AvaloniaStaticLinkSmoke.csproj -c Release -r '${{ matrix.rid }}' --configfile artifacts/avalonia-smoke-src/NuGet.config /p:PublishAot=true /p:SelfContained=true /p:PublishDir="$PWD/artifacts/smoke-${{ matrix.rid }}/" -bl:artifacts/windows-publish.binlog
+          if ($LASTEXITCODE -ne 0) { throw 'NativeAOT publish failed' }
+      - name: Run NativeAOT consumer on current Windows
+        if: ${{ matrix.rid != 'win-arm64' }}
+        shell: pwsh
+        run: |
+          $app = Resolve-Path 'artifacts/smoke-${{ matrix.rid }}/AvaloniaStaticLinkSmoke.exe'
+          $process = Start-Process $app -WorkingDirectory (Split-Path $app) -PassThru
+          if ($process.WaitForExit(15000)) {
+            if ($process.ExitCode -ne 0) { throw "NativeAOT app exited with $($process.ExitCode)" }
+          } else { Stop-Process -Id $process.Id -Force }
+      - name: Upload diagnostics and applications
+        if: ${{ always() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: windows-retest-${{ matrix.rid }}
+          path: |
+            artifacts/windows-publish.binlog
+            artifacts/smoke-${{ matrix.rid }}/**
+            artifacts/avalonia-smoke-src/obj/**/link.rsp

@@ -193,6 +193,9 @@
             <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libEGL_static.a" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libEGL_static.a')" />
             <NativeSystemLibrary Include="X11;Xext;xcb;wayland-client;wayland-egl;ffi" Condition="$(RuntimeIdentifier.StartsWith('linux-'))" />
             <LinkerArg Include="/lldmingw" Condition="$(RuntimeIdentifier.StartsWith('win-'))" />
+            <!-- Zig uses dynamic UCRT. Avoid pulling the static CRT startup
+                 through MSVC TLS helpers; retain MSVC exception handling. -->
+            <LinkerArg Include="/NODEFAULTLIB:libcmt.lib;/DEFAULTLIB:msvcrt.lib;/DEFAULTLIB:libvcruntime.lib" Condition="$(RuntimeIdentifier.StartsWith('win-'))" />
         </ItemGroup>
     </Target>
     <Target Name="StaticLinkAvaloniaUseLldCompatibleArguments"
