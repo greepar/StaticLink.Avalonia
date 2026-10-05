@@ -183,7 +183,11 @@
             <CppLinker>lld-link</CppLinker>
         </PropertyGroup>
         <ItemGroup>
-            <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/*.lib" Exclude="$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/libmingw32.lib" Condition="$(RuntimeIdentifier.StartsWith('win-'))" />
+            <!-- Use Zig's static C++ implementation, but use the consumer's
+                 Windows SDK import libraries and MSVC's UCRT startup helpers. -->
+            <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/c++.lib;$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/c++abi.lib;$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/unwind.lib;$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/compiler_rt.lib" Condition="$(RuntimeIdentifier.StartsWith('win-'))" />
+            <NativeLibrary Include="ucrt.lib;libvcruntime.lib;msvcrt.lib" Condition="$(RuntimeIdentifier.StartsWith('win-'))" />
+            <LinkerArg Include="dwrite.lib;windowscodecs.lib;d3d11.lib;dwmapi.lib;shlwapi.lib;setupapi.lib;shell32.lib;oleaut32.lib;uuid.lib" Condition="$(RuntimeIdentifier.StartsWith('win-'))" />
             <NativeLibrary Include="$(_StaticLinkAvaloniaMsvcRuntime)" Condition="$(RuntimeIdentifier.StartsWith('win-')) and Exists('$(_StaticLinkAvaloniaMsvcRuntime)')" />
             <!-- .NET embeds its own LLVM unwind implementation. Zig's copy
                  has overlapping C++ symbols with a different internal ABI. -->
