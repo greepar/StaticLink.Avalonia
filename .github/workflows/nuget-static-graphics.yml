@@ -3,6 +3,10 @@ name: staticlink-avalonia
 on:
   workflow_dispatch:
     inputs:
+      environment_only:
+        description: Validate the complete toolchain container without building release libraries
+        type: boolean
+        default: false
       skiasharp_version:
         description: Stable SkiaSharp version from this branch major; empty uses the branch version
         type: string
@@ -33,7 +37,14 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  environment:
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/zig-toolchain-image.yml
+
   preflight:
+    if: ${{ inputs.environment_only != true }}
     uses: ./.github/workflows/static-graphics-preflight.yml
     with:
       skiasharp_version: ${{ inputs.skiasharp_version }}
@@ -42,11 +53,12 @@ jobs:
     permissions:
       contents: read
       packages: write
-    needs: preflight
+    needs: [preflight, environment]
     uses: ./.github/workflows/static-graphics-zig-cross.yml
     with:
       skiasharp_version: ${{ needs.preflight.outputs.skiasharp_version }}
       source_lock: ${{ needs.preflight.outputs.source_lock }}
+      toolchain_image: ${{ needs.environment.outputs.image }}
 
   pack:
     runs-on: ubuntu-24.04

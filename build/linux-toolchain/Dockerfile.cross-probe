@@ -2,7 +2,11 @@
 ARG TOOLCHAIN_IMAGE=staticlink-debian12:probe-base
 FROM mcr.microsoft.com/dotnet/sdk:10.0.302@sha256:72dd743782f2ae7e5476fd64f6a460045e3998dc862218b80e6944cba79a01b0 AS dotnet10
 FROM mcr.microsoft.com/dotnet/sdk:8.0.416@sha256:8b5eece40d8a8050c09332eab1e65563fd4c928c5881e9e72bca7a4b0339f881 AS dotnet8
+FROM python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c AS python312
 FROM ${TOOLCHAIN_IMAGE}
+COPY --from=python312 /usr/local/ /usr/local/
+ENV PYTHONPATH=/usr/lib/python3/dist-packages
+RUN ldconfig && python3 -c 'import inspect, tarfile, six, requests, httplib2; assert "filter" in inspect.signature(tarfile.TarFile.extractall).parameters'
 
 ARG TARGETARCH
 RUN case "$TARGETARCH" in \
@@ -44,9 +48,6 @@ RUN mkdir -p /opt/staticlink \
     && printf '%s  /opt/staticlink/os_version_check.c\n' \
       bc0b9f10e8d1a1ac5905d710f1c9fead23878e31233748d580393edc4e3bfc18 | sha256sum --check
 
-COPY *.py smoke-*.c sources.lock.json cross-toolchain.lock.json *.gn.in /opt/staticlink/
-COPY patches/ /opt/staticlink/patches/
-COPY versions/ /opt/staticlink/versions/
 ENTRYPOINT ["python3", "/opt/staticlink/probe-cross.py"]
 
 COPY --from=dotnet8 /usr/share/dotnet /opt/dotnet
@@ -55,3 +56,6 @@ ENV DOTNET_ROOT=/opt/dotnet PATH=/opt/dotnet:${PATH}
 COPY fetch-linux-sysroots.py linux-sysroots*.lock.json /opt/staticlink/
 RUN python3 /opt/staticlink/fetch-linux-sysroots.py --output /opt/sysroots \
     --locks /opt/staticlink/linux-sysroots.lock.json /opt/staticlink/linux-sysroots-musl.lock.json
+COPY *.py smoke-*.c sources.lock.json cross-toolchain.lock.json *.gn.in /opt/staticlink/
+COPY patches/ /opt/staticlink/patches/
+COPY versions/ /opt/staticlink/versions/
