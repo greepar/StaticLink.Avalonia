@@ -1,7 +1,14 @@
 # Manual artifact validation
 
-Daily schedules are disabled during validation. No NuGet.org publication or
-GitHub Release is requested by the manual dispatcher on main.
+Native daily checks are enabled by daily-avalonia-native.yml on main at 03:17
+UTC (11:17 Singapore time). Skia3/4 daily schedules remain disabled. No
+NuGet.org publication or GitHub Release is requested by either dispatcher.
+
+The Native checker handles the latest stable Avalonia 11 and 12 independently.
+It skips versions with non-expired NuGet artifacts from a successful Native
+run at the current avalonia-native branch commit. New versions, changed Native
+code, expired artifacts, or failed builds trigger a new artifact-only build.
+Set force_build=true on the daily checker to bypass this successful-run check.
 
 Before release builds, run nuget-static-graphics.yml on skia4 with
 environment_only=true. This checks the actual container's Python/depot_tools,
@@ -33,6 +40,6 @@ only. Its three matrix jobs check out their own branch and dispatch independentl
 Use force_build=true to rebuild published versions for testing.
 After validation, enable the schedule on main only; non-default branches cannot
 run their own GitHub cron schedules. Publication remains an explicit opt-in.
-While publication is disabled, an unpublished package may be rebuilt on every
-check; add successful-run tracking before enabling artifact-only daily builds
-if avoiding repeated builds is required.
+The manual graphics dispatcher still checks publication rather than successful
+Actions runs. Add the same successful-run tracking before enabling artifact-only
+daily graphics builds if avoiding repeated builds is required.
