@@ -2,6 +2,10 @@ name: pinned-zig-toolchain-image
 
 on:
   workflow_call:
+    inputs:
+      validation_rids:
+        type: string
+        default: '[]'
     outputs:
       image:
         description: Immutable Debian 12 Zig toolchain image reference
@@ -26,6 +30,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ACTOR: ${{ github.actor }}
           REPOSITORY: ${{ github.repository }}
+          VALIDATION_RIDS: ${{ inputs.validation_rids || '[]' }}
           BASE_HASH: ${{ hashFiles('build/linux-toolchain/Dockerfile') }}
           RECIPE_HASH: ${{ hashFiles('build/linux-toolchain/Dockerfile*', 'build/linux-toolchain/*.py', 'build/linux-toolchain/*.c', 'build/linux-toolchain/*.gn.in', 'build/linux-toolchain/*lock.json', 'build/linux-toolchain/versions/*.json', 'build/linux-toolchain/patches/**') }}
         run: |
@@ -55,7 +60,7 @@ jobs:
           docker run --rm --user "$(id -u):$(id -g)" \
             -e HOME=/tmp -e DOTNET_CLI_HOME=/tmp -e ZIG_GLOBAL_CACHE_DIR=/tmp/zig-cache \
             -v "$PWD/artifacts/toolchain-environment:/validation" \
-            --entrypoint python3 "$image" /opt/staticlink/validate-toolchain.py --output /validation
+            --entrypoint python3 "$image" /opt/staticlink/validate-toolchain.py --output /validation --rids "$VALIDATION_RIDS"
           if [ "$built_image" = true ]; then
             docker push "$image"
             docker pull "$image"

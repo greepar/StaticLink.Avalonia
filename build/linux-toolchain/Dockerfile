@@ -21,7 +21,7 @@ RUN rm -f /etc/apt/sources.list.d/debian.sources \
        pkg-config cmake binutils file unzip xz-utils bzip2 patch \
        libfontconfig1-dev libglib2.0-dev libgl1-mesa-dev libpci-dev \
        libx11-dev libxcb1-dev libxext-dev libwayland-dev libexpat1-dev libicu72 libssl3 \
-    && for tool in clang clang++ llvm-ar llvm-ranlib llvm-nm; do \
+    && for tool in clang clang++ llvm-ar llvm-ranlib llvm-nm lld ld.lld lld-link ld64.lld; do \
          ln -s "/usr/bin/$tool-16" "/usr/local/bin/$tool"; \
        done \
     && mkdir -p /opt/staticlink \
