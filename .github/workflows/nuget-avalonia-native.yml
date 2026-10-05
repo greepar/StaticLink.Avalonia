@@ -100,6 +100,8 @@ jobs:
       contents: read
       packages: write
     uses: ./.github/workflows/zig-toolchain-image.yml
+    with:
+      validation_rids: '["osx-x64","osx-arm64"]'
 
   build:
     needs: [detect, toolchain]
@@ -187,6 +189,7 @@ jobs:
             mkdir -p "External/AvaloniaNative/$rid/native"
             cp "artifacts/native/native-avalonia-${{ matrix.version.avalonia_version }}-$rid/libAvaloniaNative.a" "External/AvaloniaNative/$rid/native/"
             cp "artifacts/native/native-avalonia-${{ matrix.version.avalonia_version }}-$rid/macos_font_preinit.o" "External/AvaloniaNative/$rid/native/"
+            cp "artifacts/native/native-avalonia-${{ matrix.version.avalonia_version }}-$rid/avalonia-native-build.json" "External/AvaloniaNative/$rid/native/"
           done
 
       - name: Pack StaticLink.Avalonia.Native

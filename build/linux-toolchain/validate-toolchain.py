@@ -20,6 +20,7 @@ def run(command):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--rids", default="[]")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     report = {"python": sys.version, "targets": {}, "passed": False}
@@ -41,6 +42,11 @@ def main():
                 raise RuntimeError("Missing .NET SDK " + major)
         adapter = Path(__file__).with_name("zig-cross.py")
         targets = runpy.run_path(str(adapter))["TARGETS"]
+        requested = json.loads(args.rids)
+        if not isinstance(requested, list) or any(rid not in targets for rid in requested):
+            raise ValueError("Expected a JSON array of supported RIDs")
+        if requested:
+            targets = {rid: targets[rid] for rid in requested}
         sdk = Path("/opt/macos-sdk/MacOSX15.5.sdk")
         if json.loads((sdk / "SDKSettings.json").read_text())["Version"] != "15.5":
             raise RuntimeError("Unexpected macOS SDK version")
