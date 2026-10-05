@@ -3,6 +3,10 @@ name: staticlink-avalonia
 on:
   workflow_dispatch:
     inputs:
+      windows_retest_rids:
+        description: Windows RID JSON list for artifact-based retests
+        type: string
+        default: '["win-x64","win-x86","win-arm64"]'
       windows_retest_run_id:
         description: Reuse this previous run's NuGet artifact for Windows-only linker/runtime tests
         type: string
@@ -54,6 +58,7 @@ jobs:
     uses: ./.github/workflows/windows-static-smoke.yml
     with:
       baseline_run_id: ${{ inputs.windows_retest_run_id }}
+      rids: ${{ inputs.windows_retest_rids }}
       windows7_compat: ${{ inputs.windows7_compat }}
 
   environment:
