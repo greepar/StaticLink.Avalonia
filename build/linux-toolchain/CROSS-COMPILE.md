@@ -62,3 +62,20 @@ This common driver supports the tested source revisions. Future compiler,
 SDK, GN or source changes can still require deliberate updates. Daily releases
 fail closed and publish only after all required jobs pass. SkiaSharp 2 is frozen
 and excluded from the new regression/release tracks.
+
+## Release archive size and runtime checks
+
+The common driver strips debug sections from exported project archives and
+static C++ runtime archives while preserving link symbols, relocations and
+exception metadata. `optimize-archives.py` removes byte-identical ANGLE object
+members from GLESv2 and rebuilds the archive index. ANGLE remains a separate
+complete library; GLESv2 is linked before it. Windows DLL import archives are
+not processed by the stripper. The driver links both native probes against
+these optimized project archives before recording their hashes.
+
+The nine-RID release workflow publishes NativeAOT consumers on the matching
+Windows, Linux, Alpine and macOS environments. Windows ARM64 uses
+`windows-11-arm`. Runtime checks require a successfully rendered frame marker
+and a clean process exit within 60 seconds. A running process alone is not a
+successful render test. Build and runtime results apply to the tested versions
+and runner OS versions; they do not establish Win7 runtime support.
