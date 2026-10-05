@@ -163,6 +163,18 @@
         </ItemGroup>
         <Delete Files="@(_StaticLinkAvaloniaFilesToDelete)" TreatErrorsAsWarnings="true" />
     </Target>
+    <!-- NativeAOT supplies MSVC CRT/TLS startup. Keep MinGW helper routines,
+         but let MSVC own the process TLS directory and initialization. -->
+    <Target Name="StaticLinkAvaloniaPrepareMsvcRuntime"
+            BeforeTargets="StaticLinkAvaloniaAddZigRuntime"
+            Condition="'$(PublishAot)' == 'true' and $(RuntimeIdentifier.StartsWith('win-')) and Exists('$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/libmingw32.lib')">
+        <PropertyGroup>
+            <_StaticLinkAvaloniaMsvcRuntime>$(IntermediateOutputPath)staticlink-msvc/libmingw32.lib</_StaticLinkAvaloniaMsvcRuntime>
+        </PropertyGroup>
+        <MakeDir Directories="$(IntermediateOutputPath)staticlink-msvc" />
+        <Copy SourceFiles="$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/libmingw32.lib" DestinationFiles="$(_StaticLinkAvaloniaMsvcRuntime)" />
+        <Exec Command="llvm-ar d &quot;$(_StaticLinkAvaloniaMsvcRuntime)&quot; tlssup.obj" />
+    </Target>
     <!-- SetupOSSpecificProps snapshots NativeLibrary into LinkerArg. -->
     <Target Name="StaticLinkAvaloniaAddZigRuntime"
             BeforeTargets="SetupOSSpecificProps"
@@ -171,8 +183,12 @@
             <CppLinker>lld-link</CppLinker>
         </PropertyGroup>
         <ItemGroup>
-            <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/*.lib" Condition="$(RuntimeIdentifier.StartsWith('win-'))" />
-            <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/*.a" Condition="!$(RuntimeIdentifier.StartsWith('win-'))" />
+            <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/*.lib" Exclude="$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/libmingw32.lib" Condition="$(RuntimeIdentifier.StartsWith('win-'))" />
+            <NativeLibrary Include="$(_StaticLinkAvaloniaMsvcRuntime)" Condition="$(RuntimeIdentifier.StartsWith('win-')) and Exists('$(_StaticLinkAvaloniaMsvcRuntime)')" />
+            <!-- .NET embeds its own LLVM unwind implementation. Zig's copy
+                 has overlapping C++ symbols with a different internal ABI. -->
+            <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/*.a" Exclude="$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/libunwind.a" Condition="$(RuntimeIdentifier.StartsWith('linux-'))" />
+            <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/*.a" Condition="$(RuntimeIdentifier.StartsWith('osx-'))" />
             <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libEGL_static.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libEGL_static.lib')" />
             <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libEGL_static.a" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libEGL_static.a')" />
             <NativeSystemLibrary Include="X11;Xext;xcb;wayland-client;wayland-egl;ffi" Condition="$(RuntimeIdentifier.StartsWith('linux-'))" />
