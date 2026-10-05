@@ -36,8 +36,12 @@ sysroot packages by checksum. SDK extraction supports pinned Debian Python 3.11.
 `zig-toolchain-image.yml` builds/reuses GHCR images by recipe digest and passes
 an immutable image digest to downstream builds. Repository package write
 permission is required. Source profiles pin SkiaSharp, Skia and ANGLE commits.
-The existing exact per-target source/build cache has no fallback restores;
-ccache additionally checks compiler contents. Cold downloads remain necessary.
+Verified native archives use an exact per-version/RID/image/recipe cache key.
+A hit skips source preparation and native compilation, while consumer tests still
+run. Failed native builds save a compiler cache capped at 128 MiB; they do not
+save the multi-gigabyte source trees or Zig global cache. ccache additionally
+checks compiler contents. Cold source downloads remain necessary on archive
+cache misses, and cache eviction can still require a rebuild.
 
 `build-cross.py` adapts declared GN capabilities, rejects unknown compiler flags,
 checks static targets, builds six archives and links raster and EGL/GLES probes.

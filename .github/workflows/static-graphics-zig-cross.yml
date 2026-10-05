@@ -76,16 +76,25 @@ jobs:
         run: |
           set -euo pipefail
           identity="$(printf '%s\n' "$TOOLCHAIN_IMAGE" "$RECIPE_HASH" | sha256sum | cut -d' ' -f1)"
-          echo "prefix=zig-debian12-v4-$SKIASHARP_PROFILE-$CROSS_RID-$identity-" >> "$GITHUB_OUTPUT"
-      - name: Restore latest compatible target cache
+          echo "prefix=zig-ccache-v1-$SKIASHARP_PROFILE-$CROSS_RID-$identity-" >> "$GITHUB_OUTPUT"
+          echo "native=zig-native-v1-$SKIASHARP_PROFILE-$CROSS_RID-$identity" >> "$GITHUB_OUTPUT"
+      - name: Restore verified native archives
+        id: native-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: External/NativeStatic/${{ matrix.rid }}/native
+          key: ${{ steps.cache-key.outputs.native }}
+      - name: Restore latest compatible compiler cache
+        if: ${{ steps.native-cache.outputs.cache-hit != 'true' }}
         id: cache
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
-          path: External/NativeStatic/.work
+          path: External/NativeStatic/.work/ccache
           key: ${{ steps.cache-key.outputs.prefix }}${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
             ${{ steps.cache-key.outputs.prefix }}
       - name: Pull immutable toolchain image
+        if: ${{ steps.native-cache.outputs.cache-hit != 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
           ACTOR: ${{ github.actor }}
@@ -94,6 +103,7 @@ jobs:
           docker pull "$TOOLCHAIN_IMAGE"
       - name: Prepare locked sources and build native libraries
         id: build
+        if: ${{ steps.native-cache.outputs.cache-hit != 'true' }}
         env:
           CROSS_RID: ${{ matrix.rid }}
           SKIASHARP_PROFILE: ${{ inputs.skiasharp_version }}
@@ -101,10 +111,11 @@ jobs:
           mkdir -p External/NativeStatic/.work/home
           docker run --rm --user "$(id -u):$(id -g)" \
             -e HOME=/src/External/NativeStatic/.work/home -e CROSS_RID -e SKIASHARP_PROFILE \
-            -e CCACHE_DIR=/src/External/NativeStatic/.work/ccache -e CCACHE_MAXSIZE=1G \
+            -e CCACHE_DIR=/src/External/NativeStatic/.work/ccache -e CCACHE_MAXSIZE=128M \
             -e ZIG_GLOBAL_CACHE_DIR=/src/External/NativeStatic/.work/zig-global \
             -v "$PWD:/src" -w /src --entrypoint bash "$TOOLCHAIN_IMAGE" -c '
               set -euo pipefail
+              trap '"'"'ccache --max-size=128M; ccache --cleanup; ccache --show-stats'"'"' EXIT
               export SOURCE_LOCK="/src/build/linux-toolchain/release.lock.json"
               source scripts/prepare-cross-sources.sh
               python3 build/linux-toolchain/build-cross.py \
@@ -117,12 +128,19 @@ jobs:
                 --input "/src/External/NativeStatic/zig-cross/$SKIASHARP_PROFILE/$CROSS_RID" \
                 --output "/src/External/NativeStatic/$CROSS_RID/native"
             '
-      - name: Save target progress even after build failure
-        if: ${{ always() && steps.cache.outputs.cache-primary-key != '' && steps.build.outcome != '' && steps.build.outcome != 'skipped' && steps.cache.outputs.cache-hit != 'true' }}
+      - name: Save verified native archives
+        if: ${{ steps.build.outcome == 'success' && steps.native-cache.outputs.cache-hit != 'true' }}
         continue-on-error: true
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
-          path: External/NativeStatic/.work
+          path: External/NativeStatic/${{ matrix.rid }}/native
+          key: ${{ steps.cache-key.outputs.native }}
+      - name: Save compiler progress after build failure
+        if: ${{ always() && steps.build.outcome == 'failure' && steps.cache.outputs.cache-primary-key != '' }}
+        continue-on-error: true
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: External/NativeStatic/.work/ccache
           key: ${{ steps.cache.outputs.cache-primary-key }}
       - name: Upload archives, link tests and input manifest
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
