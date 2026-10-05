@@ -42,6 +42,27 @@ def repair_skcms(source):
     return repaired
 
 
+def repair_windows_keepalive(source):
+    # Upstream keeps Tizen-only JSON references in one object. Windows x86
+    # NativeAOT can retain that object even when the JSON module is disabled.
+    path = source / 'src/c/sk_linker.cpp'
+    if not path.exists():
+        return 'absent'
+    text = path.read_text()
+    marker = '// STATICLINK_WINDOWS_KEEPALIVE'
+    if marker in text:
+        return 'already-compatible'
+    if 'void sk_linker_keep_alive(void)' not in text or 'This function is needed on Tizen' not in text:
+        raise RuntimeError('Inspect upstream sk_linker_keep_alive before applying the Windows guard')
+    start = text.index('{', text.index('void sk_linker_keep_alive(void)')) + 1
+    end = text.rfind('}')
+    if end <= start:
+        raise RuntimeError('Invalid upstream keepalive function')
+    text = text[:start] + '\n#if !defined(_WIN32) ' + marker + text[start:end] + '\n#endif\n' + text[end:]
+    path.write_text(text)
+    return 'repaired'
+
+
 def configure(source, out, desired, gn, env):
     # GN itself resolves imports, defaults and conditional declarations. Text
     # searches alone can incorrectly report an option from an inactive branch.

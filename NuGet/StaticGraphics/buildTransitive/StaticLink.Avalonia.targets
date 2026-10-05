@@ -22,8 +22,8 @@
         <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/skia_x86_stdcall_thunks.lib" Condition="'$(RuntimeIdentifier)' == 'win-x86' and Exists('$(_StaticLinkAvaloniaNativeRoot)/skia_x86_stdcall_thunks.lib')" />
         <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/skia.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/skia.lib')" />
         <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/SkiaSharp.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/SkiaSharp.lib')" />
-        <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libANGLE_static.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libANGLE_static.lib')" />
         <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libGLESv2_static.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libGLESv2_static.lib')" />
+        <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libANGLE_static.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libANGLE_static.lib')" />
         <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libc++.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libc++.lib')" />
         <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libc++abi.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libc++abi.lib')" />
         <LinkerArg Include="d3d9.lib;dxguid.lib" />
@@ -65,8 +65,8 @@
             <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/skia_x86_stdcall_thunks.lib" Condition="'$(RuntimeIdentifier)' == 'win-x86' and Exists('$(_StaticLinkAvaloniaNativeRoot)/skia_x86_stdcall_thunks.lib')" />
             <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/skia.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/skia.lib')" />
             <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/SkiaSharp.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/SkiaSharp.lib')" />
-            <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libANGLE_static.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libANGLE_static.lib')" />
             <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libGLESv2_static.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libGLESv2_static.lib')" />
+            <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libANGLE_static.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libANGLE_static.lib')" />
             <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libc++.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libc++.lib')" />
             <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libc++abi.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libc++abi.lib')" />
             <LinkerArg Include="d3d9.lib;dxguid.lib" />
@@ -84,8 +84,8 @@
         <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libHarfBuzzSharp.a" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libHarfBuzzSharp.a')" />
         <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libskia.a" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libskia.a')" />
         <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libSkiaSharp.a" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libSkiaSharp.a')" />
-        <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libANGLE_static.a" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libANGLE_static.a')" />
         <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libGLESv2_static.a" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libGLESv2_static.a')" />
+        <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libANGLE_static.a" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libANGLE_static.a')" />
         <NativeSystemLibrary Include="stdc++" />
         <NativeSystemLibrary Include="gcc_eh" />
         <NativeSystemLibrary Include="fontconfig" />
