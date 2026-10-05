@@ -25,3 +25,6 @@ extra_cflags = [ "-DSKIA_C_DLL" ]
 extra_cflags_cc = [ "-frtti" ]
 # Standalone SkiaSharp excludes the Chromium PartitionAlloc dependency.
 skia_use_partition_alloc = false
+# Zig injects the SDK's system include directory before -isystem paths.
+# Bundled zlib/png/jpeg headers must precede the SDK to match static symbols.
+third_party_isystem = false

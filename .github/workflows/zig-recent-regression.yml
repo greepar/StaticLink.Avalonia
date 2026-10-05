@@ -6,7 +6,7 @@ on:
       versions:
         description: JSON array of stable SkiaSharp versions from this branch major
         type: string
-        default: '["3.119.2","3.119.4"]'
+        default: '["3.119.1","3.119.2","3.119.4"]'
 
 permissions:
   contents: read
@@ -18,7 +18,7 @@ jobs:
     outputs:
       releases: ${{ steps.locks.outputs.releases }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - id: locks
         env:
           VERSIONS: ${{ inputs.versions }}

@@ -13,7 +13,8 @@ validation scope and remaining Docker/runtime/NativeAOT verification. Read
 and .NET SDKs. The historical filename is retained for existing references.
 `zig-toolchain-image.yml` reuses recipe-tagged GHCR images and downstream jobs
 pull their immutable digest. Source locks and archive/link manifests provide
-traceability. No complete local Docker image build has been run.
+traceability. See [CONTAINER-VALIDATION.md](CONTAINER-VALIDATION.md) for
+local OrbStack verification using the exact immutable CI image.
 
 Legacy platform helper scripts are retained for reference; production graphics
 Actions now delegate to the common Zig cross-build workflow. SkiaSharp 2 remains

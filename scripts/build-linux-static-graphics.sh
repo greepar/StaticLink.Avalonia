@@ -174,8 +174,12 @@ sync_skiasharp() {
     git init "$src" >&2 || return $?
     git -C "$src" remote add origin https://github.com/mono/SkiaSharp.git || return $?
   fi
-  retry_source_download git -C "$src" fetch --depth 1 origin "$revision" >&2 || return $?
-  git -C "$src" checkout --detach FETCH_HEAD >&2 || return $?
+  local current
+  current="$(git -C "$src" rev-parse HEAD 2>/dev/null || true)"
+  if [[ ! "$revision" =~ ^[0-9a-f]{40}$ || "$current" != "$revision" ]]; then
+    retry_source_download git -C "$src" fetch --depth 1 origin "$revision" >&2 || return $?
+    git -C "$src" checkout --detach FETCH_HEAD >&2 || return $?
+  fi
   retry_source_download git -C "$src" submodule update --init --depth 1 externals/skia >&2 || return $?
   echo "$src"
 }
@@ -288,8 +292,12 @@ sync_angle() {
     git init "$src" >&2 || return $?
     git -C "$src" remote add origin https://github.com/google/angle.git || return $?
   fi
-  retry_source_download git -C "$src" fetch --depth 1 origin "$revision" >&2 || return $?
-  git -C "$src" checkout --detach FETCH_HEAD >&2 || return $?
+  local current
+  current="$(git -C "$src" rev-parse HEAD 2>/dev/null || true)"
+  if [[ ! "$revision" =~ ^[0-9a-f]{40}$ || "$current" != "$revision" ]]; then
+    retry_source_download git -C "$src" fetch --depth 1 origin "$revision" >&2 || return $?
+    git -C "$src" checkout --detach FETCH_HEAD >&2 || return $?
+  fi
   echo "$src"
 }
 

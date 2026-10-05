@@ -56,6 +56,8 @@ ENV DOTNET_ROOT=/opt/dotnet PATH=/opt/dotnet:${PATH}
 COPY fetch-linux-sysroots.py linux-sysroots*.lock.json /opt/staticlink/
 RUN python3 /opt/staticlink/fetch-linux-sysroots.py --output /opt/sysroots \
     --locks /opt/staticlink/linux-sysroots.lock.json /opt/staticlink/linux-sysroots-musl.lock.json
-COPY *.py smoke-*.c sources.lock.json cross-toolchain.lock.json *.gn.in /opt/staticlink/
-COPY patches/ /opt/staticlink/patches/
-COPY versions/ /opt/staticlink/versions/
+ENV DEPOT_TOOLS_METRICS=0
+
+# Build recipes and release profiles run from the checked-out /src workspace.
+# Keep only environment probes in the image, so source updates reuse the SDKs.
+COPY zig-cross.py validate-toolchain.py probe-cross.py /opt/staticlink/

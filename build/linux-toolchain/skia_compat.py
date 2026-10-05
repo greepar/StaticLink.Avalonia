@@ -73,6 +73,8 @@ def configure(source, out, desired, gn, env):
         raise RuntimeError('No known Skia GPU switch; refusing to silently change the graphics feature set')
     required = {'target_os', 'target_cpu', 'is_static_skiasharp', 'extra_cflags', 'extra_cflags_cc'}
     required |= {key for key in ('skia_use_metal', 'skia_use_xps') if desired.get(key) == 'true'}
+    if desired.get('third_party_isystem') == 'false':
+        required.add('third_party_isystem')
     missing = required - available
     if missing:
         raise RuntimeError('Skia source lacks required build capabilities: ' + ', '.join(sorted(missing)))
