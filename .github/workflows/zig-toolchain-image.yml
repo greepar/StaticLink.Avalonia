@@ -1,0 +1,57 @@
+name: pinned-zig-toolchain-image
+
+on:
+  workflow_call:
+    outputs:
+      image:
+        description: Immutable Debian 12 Zig toolchain image reference
+        value: ${{ jobs.image.outputs.image }}
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      image: ${{ steps.publish.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish or reuse exact toolchain image
+        id: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+          REPOSITORY: ${{ github.repository }}
+          BASE_HASH: ${{ hashFiles('build/linux-toolchain/Dockerfile') }}
+          RECIPE_HASH: ${{ hashFiles('build/linux-toolchain/Dockerfile*', 'build/linux-toolchain/*.py', 'build/linux-toolchain/*.c', 'build/linux-toolchain/*.gn.in', 'build/linux-toolchain/*lock.json', 'build/linux-toolchain/versions/*.json', 'build/linux-toolchain/patches/**') }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+          repository="ghcr.io/${REPOSITORY,,}-zig"
+          image="$repository:recipe-$RECIPE_HASH"
+          base="$repository:debian12-$BASE_HASH"
+          if ! docker pull "$image"; then
+            if ! docker pull "$base"; then
+              docker build --platform linux/amd64 \
+                --label "org.opencontainers.image.source=https://github.com/$REPOSITORY" \
+                -t "$base" build/linux-toolchain
+              docker push "$base"
+              docker pull "$base"
+            fi
+            base_digest="$(docker image inspect --format '{{index .RepoDigests 0}}' "$base")"
+            docker build --platform linux/amd64 \
+              --build-arg "TOOLCHAIN_IMAGE=$base_digest" \
+              --label "org.opencontainers.image.source=https://github.com/$REPOSITORY" \
+              -f build/linux-toolchain/Dockerfile.cross-probe \
+              -t "$image" build/linux-toolchain
+            docker push "$image"
+            docker pull "$image"
+          fi
+          digest="$(docker image inspect --format '{{index .RepoDigests 0}}' "$image")"
+          case "$digest" in "$repository"@sha256:*) ;; *) echo 'No immutable image digest' >&2; exit 1 ;; esac
+          echo "image=$digest" >> "$GITHUB_OUTPUT"
+          echo "Toolchain: $digest" >> "$GITHUB_STEP_SUMMARY"

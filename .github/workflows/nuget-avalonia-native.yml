@@ -1,8 +1,17 @@
 name: staticlink-avalonia-native
 
 on:
-  schedule:
-    - cron: "17 3 * * *"
+  workflow_call:
+    inputs:
+      avalonia_version:
+        type: string
+        default: ''
+      force_build:
+        type: boolean
+        default: false
+      publish_to_nuget:
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       avalonia_version:
@@ -17,7 +26,7 @@ on:
       publish_to_nuget:
         description: Publish with NuGet Trusted Publishing after smoke tests
         required: true
-        default: true
+        default: false
         type: boolean
 
 jobs:
@@ -58,9 +67,14 @@ jobs:
               exit 1
             fi
 
-            package_version="$avalonia_version.1"
+            package_version="$avalonia_version.2"
             package_url="https://api.nuget.org/v3-flatcontainer/staticlink.avalonia.native/$package_version/staticlink.avalonia.native.$package_version.nupkg"
-            if [ "$FORCE_BUILD" != "true" ] && curl --fail --silent --location --output /dev/null "$package_url"; then
+            status=$(curl --retry 3 --silent --show-error --location --output /dev/null --write-out '%{http_code}' "$package_url")
+            if [ "$status" != 200 ] && [ "$status" != 404 ]; then
+              echo "NuGet availability check failed: HTTP $status" >&2
+              exit 1
+            fi
+            if [ "$FORCE_BUILD" != "true" ] && [ "$status" = 200 ]; then
               echo "Already published: $package_version"
               continue
             fi
@@ -79,8 +93,16 @@ jobs:
             echo 'should_build=true' >> "$GITHUB_OUTPUT"
           fi
 
-  build:
+  toolchain:
     needs: detect
+    if: ${{ needs.detect.outputs.should_build == 'true' }}
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/zig-toolchain-image.yml
+
+  build:
+    needs: [detect, toolchain]
     if: ${{ needs.detect.outputs.should_build == 'true' }}
     strategy:
       fail-fast: false
@@ -92,10 +114,12 @@ jobs:
             runner: macos-14
           - rid: osx-arm64
             runner: macos-15
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
+      packages: read
     env:
+      TOOLCHAIN_IMAGE: ${{ needs.toolchain.outputs.image }}
       RID: ${{ matrix.rid }}
       AVALONIA_VERSION: ${{ matrix.version.avalonia_version }}
       WORK_DIR: ${{ github.workspace }}/External/AvaloniaNative/.work
@@ -103,18 +127,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup .NET for Avalonia header generation
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: |
-            8.0.x
-            10.0.x
+      - name: Pull immutable toolchain image
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+          docker pull "$TOOLCHAIN_IMAGE"
 
-      - name: Build static AvaloniaNative
-        run: bash scripts/build-macos-avalonia-native-static.sh
-
-      - name: Build macOS font preinit object
-        run: bash scripts/build-macos-font-preinit.sh
+      - name: Build static AvaloniaNative and font preinit with Zig
+        run: |
+          mkdir -p "$WORK_DIR" "$OUTPUT_DIR"
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp/staticlink-home -e RID -e AVALONIA_VERSION \
+            -v "$PWD:/src" -w /src --entrypoint bash "$TOOLCHAIN_IMAGE" -c '
+              set -euo pipefail
+              mkdir -p "$HOME"
+              src="/src/External/AvaloniaNative/.work/Avalonia-$AVALONIA_VERSION"
+              git clone --depth 1 --branch "$AVALONIA_VERSION" https://github.com/AvaloniaUI/Avalonia.git "$src"
+              if git -C "$src" config -f .gitmodules --get-regexp path | awk '{print $2}' | grep -qx external/Numerge; then
+                git -C "$src" submodule update --init --depth 1 external/Numerge
+              fi
+              python3 build/linux-toolchain/build-avalonia-native-cross.py \
+                --source "$src" --rid "$RID" --sdk /opt/macos-sdk/MacOSX15.5.sdk \
+                --work "/src/External/AvaloniaNative/.work/zig-$AVALONIA_VERSION-$RID" \
+                --output "/src/External/AvaloniaNative/$RID/native"
+            '
 
       - name: Upload static AvaloniaNative
         uses: actions/upload-artifact@v4
@@ -123,6 +161,7 @@ jobs:
           path: |
             External/AvaloniaNative/${{ matrix.rid }}/native/libAvaloniaNative.a
             External/AvaloniaNative/${{ matrix.rid }}/native/macos_font_preinit.o
+            External/AvaloniaNative/${{ matrix.rid }}/native/avalonia-native-build.json
           if-no-files-found: error
 
   pack:
@@ -260,11 +299,19 @@ jobs:
           sys.exit(proc.returncode if proc.returncode > 0 else 1)
           PY
 
+      - name: Upload AvaloniaNative smoke app
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: avalonia-native-smoke-${{ matrix.version.avalonia_version }}-${{ matrix.rid }}
+          path: artifacts/smoke-${{ matrix.rid }}/**
+          if-no-files-found: warn
+
   publish:
     needs:
       - detect
       - smoke
-    if: ${{ needs.detect.outputs.should_build == 'true' && (github.event_name == 'schedule' || inputs.publish_to_nuget == true) }}
+    if: ${{ needs.detect.outputs.should_build == 'true' && inputs.publish_to_nuget == true }}
     strategy:
       matrix:
         version: ${{ fromJSON(needs.detect.outputs.versions) }}
@@ -279,20 +326,32 @@ jobs:
           name: staticlink-avalonia-native-${{ matrix.version.package_version }}
           path: artifacts/nuget
 
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.302"
+
       - name: Validate Trusted Publishing configuration
         env:
           NUGET_USER: ${{ vars.NUGET_USER }}
-        run: test -n "$NUGET_USER"
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          if [ -z "$NUGET_USER" ] && [ -z "$NUGET_API_KEY" ]; then
+            echo 'Configure NUGET_USER with Trusted Publishing or NUGET_API_KEY.' >&2
+            exit 1
+          fi
 
       - name: NuGet login
+        if: ${{ vars.NUGET_USER != '' }}
         id: login
         uses: NuGet/login@v1
         with:
           user: ${{ vars.NUGET_USER }}
 
       - name: Publish to nuget.org
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY || secrets.NUGET_API_KEY }}
         run: |
           dotnet nuget push artifacts/nuget/*.nupkg \
             --source https://www.nuget.org/api/v2/package \
-            --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" \
+            --api-key "$NUGET_API_KEY" \
             --skip-duplicate

@@ -1,0 +1,56 @@
+{
+  "date_utc": "2026-10-04",
+  "compiler": "Zig 0.14.1 / Clang 19",
+  "cross_configuration_checks": {
+    "2.88.9/win-x64": 0,
+    "2.88.9/win-x86": 0,
+    "2.88.9/win-arm64": 0,
+    "2.88.9/osx-x64": 0,
+    "2.88.9/osx-arm64": 0,
+    "3.119.1/win-x64": 0,
+    "3.119.1/win-x86": 0,
+    "3.119.1/win-arm64": 0,
+    "3.119.1/osx-x64": 0,
+    "3.119.1/osx-arm64": 0,
+    "4.150.1/win-x64": 0,
+    "4.150.1/win-x86": 0,
+    "4.150.1/win-arm64": 0,
+    "4.150.1/osx-x64": 0,
+    "4.150.1/osx-arm64": 0
+  },
+  "native_linux_configuration_checks": {
+    "2.88.9/x64": "passed",
+    "2.88.9/arm64": "passed",
+    "3.119.1/x64": "passed",
+    "3.119.1/arm64": "passed",
+    "4.150.1/x64": "passed",
+    "4.150.1/arm64": "passed"
+  },
+  "new_full_build_checks": {
+    "2.88.9": {
+      "target": "win-x64",
+      "three_archives": "passed",
+      "raster_harfbuzz_executable_link": "passed",
+      "sha256": {
+        "libskia.a": "d972f868e4910cee774d592b09e3e52f65657ec3b10a1c38c26e6625e998196e",
+        "libSkiaSharp.a": "e7f22c39ce570fa74988e13a288e00646cf1b08e0be82e60a6b589bab149a8fd",
+        "libHarfBuzzSharp.a": "e7e117c25a16f9770f0953a260441d920b5a1e27b8c52457429f03ddacbe8855",
+        "smoke-raster.exe": "6a8ab77adc1444933757f702aa4dab10716a60a284ffa4777745493443909f9d"
+      }
+    },
+    "3.119.1": {
+      "target": "win-x64",
+      "three_archives": "passed",
+      "raster_harfbuzz_executable_link": "passed",
+      "sha256": {
+        "libskia.a": "d895266910b2fc8a6a72d56715ddd0b50e1e9752b184d3b99a31b8ca6614451a",
+        "libSkiaSharp.a": "544685511adf5b29eac2df771ef5088ba271fb570614671d0bde68e841ac3b32",
+        "libHarfBuzzSharp.a": "6ac05af0bb31b42af86f003e4eb70db4c4eeb021b5a438282bbd182db0dba100",
+        "smoke-raster.exe": "80cfda94712bd1df0671ce96fb27a174053451557d99ab542f148ac45a951532"
+      }
+    }
+  },
+  "runtime_tests": false,
+  "docker_cold_build_tested": false,
+  "4.150.1": "Previous five-target full archive/link checks are in local-cross-validation.json; updated win-x64 link test also passed."
+}
