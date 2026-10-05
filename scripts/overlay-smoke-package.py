@@ -28,7 +28,7 @@ if a.native_root:
             if path.is_file():
                 replacements['static/' + rid + '/native/' + path.relative_to(native).as_posix()] = path
 temporary = a.package.with_suffix('.overlay.nupkg')
-with zipfile.ZipFile(a.package) as original, zipfile.ZipFile(temporary, 'w', zipfile.ZIP_DEFLATED) as result:
+with zipfile.ZipFile(a.package) as original, zipfile.ZipFile(temporary, 'w', zipfile.ZIP_STORED) as result:
     names = set()
     for entry in original.infolist():
         name = entry.filename
