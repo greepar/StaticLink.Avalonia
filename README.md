@@ -1,3 +1,5 @@
+> 3/4 分支构建更新：原生图形库与 macOS AvaloniaNative 已统一为 Linux 上的 Zig 入口；Windows/macOS runner 用于消费者运行验收。配置与真实编译的验证范围见 [CROSS-COMPILE.md](build/linux-toolchain/CROSS-COMPILE.md)，每日发布说明见 [DAILY-RELEASE.md](DAILY-RELEASE.md)。完整九平台回归与 Docker 镜像尚待 Action 实跑，不能视为已全部通过。
+
 # StaticLink.Avalonia
 
 Static native libraries for Avalonia single-file NativeAOT publishing.

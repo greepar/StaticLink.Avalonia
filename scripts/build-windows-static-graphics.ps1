@@ -56,8 +56,13 @@ function Ensure-DepotTools {
     if (-not (Test-Path (Join-Path $depotDir ".git"))) {
         $null = git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git $depotDir
     } else {
-        $null = git -C $depotDir pull --ff-only
+        # Refresh the pinned checkout below.
     }
+    $null = git -C $depotDir fetch --depth 1 origin 8a5434051036b32412a2ecb10c213a72e3f3ccb9
+    if ($LASTEXITCODE -ne 0) { throw "Cannot fetch pinned depot_tools" }
+    $null = git -C $depotDir checkout -q --force FETCH_HEAD
+    if ($LASTEXITCODE -ne 0) { throw "Cannot checkout pinned depot_tools" }
+    $env:DEPOT_TOOLS_UPDATE = "0"
     $env:PATH = "$depotDir;$env:PATH"
 }
 
@@ -344,10 +349,16 @@ function New-WinX86SkiaStdcallThunks([string[]]$InputLibraries, [string[]]$Bindi
 function Sync-SkiaSharp {
     $src = Join-Path $WorkDir "SkiaSharp-$SkiaSharpVersion"
     if (-not (Test-Path (Join-Path $src ".git"))) {
-        $null = git -c core.longpaths=true clone --depth 1 --branch "release/$SkiaSharpVersion" https://github.com/mono/SkiaSharp.git $src
+        $null = git -c core.longpaths=true clone --depth 1 --branch "v$SkiaSharpVersion" https://github.com/mono/SkiaSharp.git $src
     } else {
-        $null = git -C $src fetch --depth 1 origin "release/$SkiaSharpVersion"
+        $null = git -C $src fetch --depth 1 origin "refs/tags/v$SkiaSharpVersion"
         $null = git -C $src checkout -q FETCH_HEAD
+    }
+    if ($env:SKIASHARP_REVISION) {
+        $null = git -C $src fetch --depth 1 origin $env:SKIASHARP_REVISION
+        if ($LASTEXITCODE -ne 0) { throw "Cannot fetch locked SkiaSharp commit" }
+        $null = git -C $src checkout -q --force FETCH_HEAD
+        if ($LASTEXITCODE -ne 0) { throw "Cannot checkout locked SkiaSharp commit" }
     }
     $null = git -C $src submodule update --init --depth 1 externals/skia
     return $src
@@ -359,7 +370,9 @@ function Patch-WinX86SkiaLinker($SkiaDir) {
     }
 
     $linkerPath = Join-Path $SkiaDir "src\c\sk_linker.cpp"
+    if (-not (Test-Path $linkerPath)) { return }
     $text = Get-Content -Path $linkerPath -Raw
+    if ($text -notmatch 'skjson::ObjectValue') { return }
     $pattern = '(?m)^    skjson::ObjectValue\* a = nullptr;\r?\n    auto r = \(\*a\)\["tmp"\]\.getType\(\);\r?$'
     $patched = [regex]::Replace($text, $pattern, '    int r = 0;')
     if ($patched -eq $text) {
@@ -447,7 +460,8 @@ extra_cflags_cc = [ "/GR" ]
 
     Push-Location $skiaDir
     try {
-        & (Join-Path $skiaDir "bin\gn.exe") gen $outDir
+        python (Join-Path $RootDir "build\linux-toolchain\skia_compat.py") --source $skiaDir --out $outDir
+        if ($LASTEXITCODE -ne 0) { throw "Skia capability configuration failed" }
         ninja -C $outDir -j $BuildJobs skia SkiaSharp HarfBuzzSharp
     } finally {
         Pop-Location
@@ -479,6 +493,12 @@ function Sync-Angle {
     } else {
         $null = git -C $src fetch --depth 1 origin "chromium/$AngleBranch"
         $null = git -C $src checkout -q FETCH_HEAD
+    }
+    if ($env:ANGLE_REVISION) {
+        $null = git -C $src fetch --depth 1 origin $env:ANGLE_REVISION
+        if ($LASTEXITCODE -ne 0) { throw "Cannot fetch locked ANGLE commit" }
+        $null = git -C $src checkout -q --force FETCH_HEAD
+        if ($LASTEXITCODE -ne 0) { throw "Cannot checkout locked ANGLE commit" }
     }
     return $src
 }

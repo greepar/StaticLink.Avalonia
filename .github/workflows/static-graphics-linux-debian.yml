@@ -1,0 +1,28 @@
+name: static-graphics-linux-debian-zig
+
+on:
+  workflow_call:
+    inputs:
+      skiasharp_version:
+        required: true
+        type: string
+      source_lock:
+        type: string
+        default: ''
+  workflow_dispatch:
+    inputs:
+      skiasharp_version:
+        type: string
+        default: '3.119.4'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    uses: ./.github/workflows/static-graphics-zig-cross.yml
+    with:
+      skiasharp_version: ${{ inputs.skiasharp_version }}
+      source_lock: ${{ inputs.source_lock || '' }}
+      rids: '["linux-x64","linux-arm64","linux-musl-x64","linux-musl-arm64"]'

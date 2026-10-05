@@ -11,13 +11,13 @@ Choose the static graphics package that matches the Avalonia and SkiaSharp major
 | 11 | 2.88.9 | `2.88.9-7151.10` |
 | 11 | 3.119.4 | `3.119.4-7922.1` |
 | 12 | 3.119.4 | `3.119.4-7922.1` |
-| 12 | 4.150.1 | `4.150.1-7922.1` |
+| 12 | 3.119.4 | `3.119.4-7922.1` |
 
 Example:
 ```xml
 <ItemGroup>
   <PackageReference Include="Avalonia" Version="12.1.0" />
-  <PackageReference Include="StaticLink.Avalonia" Version="4.150.1-7922.1" />
+  <PackageReference Include="StaticLink.Avalonia" Version="3.119.4-7922.1" />
 </ItemGroup>
 ```
 

@@ -1,0 +1,55 @@
+name: zig-recent-release-regression
+
+on:
+  workflow_dispatch:
+    inputs:
+      versions:
+        description: JSON array of stable SkiaSharp versions from this branch major
+        type: string
+        default: '["3.119.2","3.119.4"]'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  resolve:
+    runs-on: ubuntu-24.04
+    outputs:
+      releases: ${{ steps.locks.outputs.releases }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: locks
+        env:
+          VERSIONS: ${{ inputs.versions }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess
+          versions = json.loads(os.environ['VERSIONS'])
+          if not isinstance(versions, list) or not 1 <= len(versions) <= 5:
+              raise SystemExit('Expected one to five stable versions')
+          releases = []
+          for version in versions:
+              subprocess.run(['python3', 'scripts/resolve-release-lock.py', '--version', version], check=True)
+              lock = json.loads(pathlib.Path('build/linux-toolchain/release.lock.json').read_text())
+              releases.append({'version': version, 'lock': json.dumps(lock)})
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('releases=' + json.dumps(releases, separators=(',', ':')) + '\n')
+          PY
+
+  toolchain:
+    needs: resolve
+    uses: ./.github/workflows/zig-toolchain-image.yml
+
+  build:
+    needs: [resolve, toolchain]
+    strategy:
+      fail-fast: false
+      matrix:
+        release: ${{ fromJSON(needs.resolve.outputs.releases) }}
+    uses: ./.github/workflows/static-graphics-zig-cross.yml
+    with:
+      skiasharp_version: ${{ matrix.release.version }}
+      source_lock: ${{ matrix.release.lock }}
+      toolchain_image: ${{ needs.toolchain.outputs.image }}
+      artifact_prefix: regression-${{ matrix.release.version }}

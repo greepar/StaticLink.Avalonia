@@ -1,0 +1,57 @@
+# Build this local base from Dockerfile first; it contains the pinned Debian toolchain.
+ARG TOOLCHAIN_IMAGE=staticlink-debian12:probe-base
+FROM mcr.microsoft.com/dotnet/sdk:10.0.302@sha256:72dd743782f2ae7e5476fd64f6a460045e3998dc862218b80e6944cba79a01b0 AS dotnet10
+FROM mcr.microsoft.com/dotnet/sdk:8.0.416@sha256:8b5eece40d8a8050c09332eab1e65563fd4c928c5881e9e72bca7a4b0339f881 AS dotnet8
+FROM ${TOOLCHAIN_IMAGE}
+
+ARG TARGETARCH
+RUN case "$TARGETARCH" in \
+      amd64) zig_arch=x86_64; zig_sha=24aeeec8af16c381934a6cd7d95c807a8cb2cf7df9fa40d359aa884195c4716c ;; \
+      arm64) zig_arch=aarch64; zig_sha=f7a654acc967864f7a050ddacfaa778c7504a0eca8d2b678839c21eea47c992b ;; \
+      *) echo "Unsupported host architecture: $TARGETARCH" >&2; exit 1 ;; \
+    esac \
+    && curl --fail --location --retry 3 \
+       "https://ziglang.org/download/0.14.1/zig-$zig_arch-linux-0.14.1.tar.xz" -o /tmp/zig.tar.xz \
+    && printf '%s  /tmp/zig.tar.xz\n' "$zig_sha" | sha256sum --check \
+    && mkdir /opt/zig \
+    && tar -xJf /tmp/zig.tar.xz -C /opt/zig --strip-components=1 \
+    && ln -s /opt/zig/zig /usr/local/bin/zig \
+    && rm /tmp/zig.tar.xz
+
+ARG MACOS_SDK_SHA256=c15cf0f3f17d714d1aa5a642da8e118db53d79429eb015771ba816aa7c6c1cbd
+# Architecture-independent MinGW WinRT headers supplement Zig's SDK. Extract
+# files only: do not install Ubuntu binaries or change Debian package resolution.
+RUN curl --fail --location --retry 3 \
+      https://snapshot.ubuntu.com/ubuntu/20260828T000000Z/pool/universe/m/mingw-w64/mingw-w64-common_11.0.1-3build1_all.deb \
+      -o /tmp/mingw.deb \
+    && printf '%s  /tmp/mingw.deb\n' \
+      4a42fd30fbc3838c58c929d8a4882682fc12408bb7a0e6cafa913c0f0a57c187 | sha256sum --check \
+    && mkdir /opt/mingw && dpkg-deb --extract /tmp/mingw.deb /opt/mingw \
+    && rm /tmp/mingw.deb
+
+RUN curl --fail --location --retry 3 \
+      https://github.com/joseluisq/macosx-sdks/releases/download/15.5/MacOSX15.5.sdk.tar.xz \
+      -o /tmp/macos-sdk.tar.xz \
+    && printf '%s  /tmp/macos-sdk.tar.xz\n' "$MACOS_SDK_SHA256" | sha256sum --check \
+    && mkdir /opt/macos-sdk \
+    && tar -xJf /tmp/macos-sdk.tar.xz -C /opt/macos-sdk \
+    && rm /tmp/macos-sdk.tar.xz
+
+RUN mkdir -p /opt/staticlink \
+    && curl --fail --location --retry 3 \
+      https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-19.1.7/compiler-rt/lib/builtins/os_version_check.c \
+      -o /opt/staticlink/os_version_check.c \
+    && printf '%s  /opt/staticlink/os_version_check.c\n' \
+      bc0b9f10e8d1a1ac5905d710f1c9fead23878e31233748d580393edc4e3bfc18 | sha256sum --check
+
+COPY *.py smoke-*.c sources.lock.json cross-toolchain.lock.json *.gn.in /opt/staticlink/
+COPY patches/ /opt/staticlink/patches/
+COPY versions/ /opt/staticlink/versions/
+ENTRYPOINT ["python3", "/opt/staticlink/probe-cross.py"]
+
+COPY --from=dotnet8 /usr/share/dotnet /opt/dotnet
+COPY --from=dotnet10 /usr/share/dotnet /opt/dotnet
+ENV DOTNET_ROOT=/opt/dotnet PATH=/opt/dotnet:${PATH}
+COPY fetch-linux-sysroots.py linux-sysroots*.lock.json /opt/staticlink/
+RUN python3 /opt/staticlink/fetch-linux-sysroots.py --output /opt/sysroots \
+    --locks /opt/staticlink/linux-sysroots.lock.json /opt/staticlink/linux-sysroots-musl.lock.json

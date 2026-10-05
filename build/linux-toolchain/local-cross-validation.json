@@ -1,0 +1,103 @@
+{
+  "tested_date_utc": "2026-10-04",
+  "host": "Ubuntu 24.04 Linux x64",
+  "zig_version": "0.14.1",
+  "sources": {
+    "skiasharp_version": "4.150.1",
+    "skiasharp_revision": "c3e4f4c20e1f23ab74d31a8838a5bd6dc55365f2",
+    "angle_branch": "7922",
+    "angle_revision": "7e08726e32026a0bbabd6ec8a1a90f5ab533ed66",
+    "skia_revision": "0aa2d542e833ffd1d4d1b68a5152375e7f65ce11"
+  },
+  "target_runtime_tested": false,
+  "docker_build_tested": false,
+  "cold_source_preparation_tested": false,
+  "avalonia_nativeaot_tested": false,
+  "targets": {
+    "win-x64": {
+      "six_archives_compiled": true,
+      "raster_harfbuzz_link": "passed",
+      "egl_gles_link": "passed",
+      "archives_sha256": {
+        "libANGLE.a": "9b4af0208fef7773dc91f684cdf676b156f48eb40821c99eb55b531f4b262214",
+        "libEGL.a": "dc1d8568d8d3bab0d5e6956f97db88a1d3c5887a5f2437dfd29fa5abb2a48c97",
+        "libGLESv2.a": "a78c019c732a356691b849d8f632dab9f1c3254452ef98fc3ed963fd33e7049c",
+        "libHarfBuzzSharp.a": "71602aa223348bc34f754438bd2f9b90ba025547c8305b0ad45e23fbd4d0a882",
+        "libSkiaSharp.a": "3aa2b79953dfcd3b8dde7996701c3a29878e61fb589a6398f0cccacd1c33f4f2",
+        "libskia.a": "40418692d55d26e55f1882f8386ce341410a0712ae1691d47a26b3033bd7e9a8"
+      },
+      "executables_sha256": {
+        "smoke-angle.exe": "bc54570c5f9cdca0a28e2f9ceb2bdb1a118cabfdf6516557d1d31fd777a7d4c5",
+        "smoke-raster.exe": "289f963e2180bd12cdca298b931451ebc7698bef71930318899adc4505fbccef"
+      }
+    },
+    "win-x86": {
+      "six_archives_compiled": true,
+      "raster_harfbuzz_link": "passed",
+      "egl_gles_link": "passed",
+      "archives_sha256": {
+        "libANGLE.a": "27f715956b9625ffca27ebb10e4135d173ed03970745c257fe6437fd8db23daf",
+        "libEGL.a": "ddab449877aa244333f43c4a79705d3c1347c5cfae778c46ca707cd78e9ed8ed",
+        "libGLESv2.a": "adf90968b2a8984c9bceefbbce1edacb1a06038fdc9b2bfc962e9227a9c947bd",
+        "libHarfBuzzSharp.a": "8483f2e5cc92561884163f317f496a2e4b6b61242774176fe8b6370bbc54c695",
+        "libSkiaSharp.a": "565c25b03b4f574a7db5dca98327b5f7b8eea07c1f0dab5e09d6c731ad71fd29",
+        "libskia.a": "97e086493216fef2d372f555c62c2fbaf28e4d6a61398ec37334164408bcc31f"
+      },
+      "executables_sha256": {
+        "smoke-angle.exe": "5e3a6a7951f038fa1e1a9889e8f3212de285a9464b4b722700da259b1bb9e7bb",
+        "smoke-raster.exe": "9b1b4dbc3686caa89ae03cb19c5d29b3cde16ab8c0381f7c1c8b339a8f5169e5"
+      }
+    },
+    "win-arm64": {
+      "six_archives_compiled": true,
+      "raster_harfbuzz_link": "passed",
+      "egl_gles_link": "passed",
+      "archives_sha256": {
+        "libANGLE.a": "d496f595573d62e64ad1fad9339f64249ddd3904d37146ad3d1e1c58b032d797",
+        "libEGL.a": "8f87692e53a3843eb8131e51f0cbc03c7eef02039d22cc25348ecacbc12028d7",
+        "libGLESv2.a": "cea510c2d0bbed66bd67d0070953408da23a39a0e5a3be959ed4cec6069973cb",
+        "libHarfBuzzSharp.a": "662f4174d0bc0ee0760fdeacebb7ce8f187118b524239a745058547d4c25ca10",
+        "libSkiaSharp.a": "17d4ed43351f0b97b6c816de41a3e2469dd42d4df42acc6201fd30a75b8e25df",
+        "libskia.a": "52d4b8ec673881d4beb729580eac867696ca5fda4ad4c2a498f33cd8b915c76b"
+      },
+      "executables_sha256": {
+        "smoke-angle.exe": "68367ceba8053f75b841d0e2b7ab6bc8f613836b91ebd13e463fe6d261b245a9",
+        "smoke-raster.exe": "ce758159e371ae94504ae1502dbe26034ea1c3789f33f71a0f65640991578dfb"
+      }
+    },
+    "osx-x64": {
+      "six_archives_compiled": true,
+      "raster_harfbuzz_link": "passed",
+      "egl_gles_link": "passed",
+      "archives_sha256": {
+        "libANGLE.a": "353b6ad07961f94cdbde8f7901fc924fbb50600156da8194ec7dd5d9c9d96115",
+        "libEGL.a": "6ea3c6d73e1f6a3785fdd941c37e50c7d00f3f5c136edf648f27243e5698d517",
+        "libGLESv2.a": "e3bbb289e2be771c498eae0c4037e3d9058a0a52e100dd5b6622de42f00ecb7c",
+        "libHarfBuzzSharp.a": "c80b4156937b0a63ff649d7ef9ee520e342ee6f6d556a65a42e37095e91e1157",
+        "libSkiaSharp.a": "2a1e5d7d7737921cdb6a9679630fb3068ce1d2eecd7300ec7747898bb8132d39",
+        "libskia.a": "8062a85f7f5ded8f67c19db06b42c6792a526d5856c4bae467fb46d182992315"
+      },
+      "executables_sha256": {
+        "smoke-angle": "1930720daf83d6a63268427b5c1a700a46fa6cf8edd93821133224fb1d456522",
+        "smoke-raster": "6cb98cb854b52f94339eb225422d511b6e11abc9e5299658b455352f332139c4"
+      }
+    },
+    "osx-arm64": {
+      "six_archives_compiled": true,
+      "raster_harfbuzz_link": "passed",
+      "egl_gles_link": "passed",
+      "archives_sha256": {
+        "libANGLE.a": "3459ece2b66c8cbb096bf20016a40d4d463224ff7a0b4e29cab44c578daf1665",
+        "libEGL.a": "6011625f7ac8bf467e3135588a9a30e472f55fec6de3834b1b472deed4627d15",
+        "libGLESv2.a": "2c4e990ddc67f98abcc09401fa5541386cbe80458581c6fd621fd379a8541835",
+        "libHarfBuzzSharp.a": "3802662600cca36985997d24187c3bc06e1a20c258fc260778eecd34a5d791f9",
+        "libSkiaSharp.a": "e5bf6468713228ab9386d6f31f6556aed98a9cbc307b4be1fbbd61644f97658b",
+        "libskia.a": "44e3515fdf0f09c8621b35c37c23d4441d34a831d42b88391811ad8fdff710da"
+      },
+      "executables_sha256": {
+        "smoke-angle": "f19386a0d04af9a89f8ec70df6f3a1205747cfc2761efd86c4e781bcf0818018",
+        "smoke-raster": "954dde21bf79234fa0abc30b6e5307c88558996b7777f0d459693a3588b1cc43"
+      }
+    }
+  }
+}
