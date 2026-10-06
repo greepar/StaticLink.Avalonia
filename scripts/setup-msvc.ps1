@@ -13,8 +13,9 @@ $before = @{}
 Get-ChildItem Env: | ForEach-Object { $before[$_.Name] = $_.Value }
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
 $hostArchitecture = if ([Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq 'Arm64') { 'arm64' } else { 'amd64' }
-$component = if ($hostArchitecture -eq 'arm64') { 'Microsoft.VisualStudio.Component.VC.Tools.ARM64' } else { 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64' }
-$installation = & $vswhere -latest -products '*' -version '[17.0,18.0)' -requires $component -property installationPath
+# Native ARM images can install a versioned C++ component ID. Validate
+# the actual compiler after entering the developer shell instead.
+$installation = & $vswhere -latest -products '*' -version '[17.0,18.0)' -property installationPath
 if ($LASTEXITCODE -ne 0 -or -not $installation) { throw 'Visual Studio 2022 C++ tools were not found.' }
 $launcher = Join-Path $installation 'Common7/Tools/Launch-VsDevShell.ps1'
 & $launcher -Arch $target -HostArch $hostArchitecture -SkipAutomaticLocation

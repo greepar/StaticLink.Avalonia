@@ -44,7 +44,10 @@ def optimize(directory, runtime=False):
     for path in archives:
         if runtime and path.name not in runtime_names:
             continue  # Windows DLL import members are not strippable objects.
-        subprocess.run([strip, '--strip-debug', str(path)], check=True)
+        # COFF addrsig indexes refer to the pre-strip symbol table. LLVM 16
+        # does not rewrite them when debug symbols are removed. Drop this
+        # optional address-significance metadata before stripping.
+        subprocess.run([strip, '--remove-section=.llvm_addrsig', '--strip-debug', str(path)], check=True)
     angle = directory / 'libANGLE.a'
     gles = directory / 'libGLESv2.a'
     removed = 0
