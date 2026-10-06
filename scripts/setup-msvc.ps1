@@ -15,8 +15,8 @@ $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer
 $hostArchitecture = if ([Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq 'Arm64') { 'arm64' } else { 'amd64' }
 # Native ARM images can install a versioned C++ component ID. Validate
 # the actual compiler after entering the developer shell instead.
-$installation = & $vswhere -latest -products '*' -version '[17.0,18.0)' -property installationPath
-if ($LASTEXITCODE -ne 0 -or -not $installation) { throw 'Visual Studio 2022 C++ tools were not found.' }
+$installation = & $vswhere -latest -products '*' -version '[17.0,)' -property installationPath
+if ($LASTEXITCODE -ne 0 -or -not $installation) { throw 'Visual Studio 2022 or newer C++ tools were not found.' }
 $launcher = Join-Path $installation 'Common7/Tools/Launch-VsDevShell.ps1'
 & $launcher -Arch $target -HostArch $hostArchitecture -SkipAutomaticLocation
 if (-not (Get-Command cl.exe -ErrorAction SilentlyContinue)) { throw 'MSVC environment did not expose cl.exe.' }
