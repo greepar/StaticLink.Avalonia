@@ -489,8 +489,8 @@ jobs:
               output = result.stdout or ""
               pathlib.Path(f"avalonia-{renderer}.log").write_text(output)
               print(output, end="")
-              marker = f"STATICLINK_SMOKE_READY={renderer}"
-              if result.returncode != 0 or marker not in output.splitlines():
+              marker = f"STATICLINK_SMOKE_READY={renderer};BACKEND="
+              if result.returncode != 0 or not any(line.startswith(marker) for line in output.splitlines()):
                   raise SystemExit(f"Avalonia {renderer} smoke app failed with exit code {result.returncode}.")
           PY
 
