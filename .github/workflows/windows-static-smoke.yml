@@ -51,7 +51,7 @@ jobs:
   smoke:
     needs: native
     if: ${{ always() && ((!inputs.windows7_compat && needs.native.result == 'skipped') || needs.native.result == 'success') }}
-    runs-on: windows-2022
+    runs-on: ${{ matrix.rid == 'win-arm64' && 'windows-11-arm' || 'windows-2022' }}
     strategy:
       fail-fast: false
       matrix:
@@ -62,6 +62,7 @@ jobs:
         shell: pwsh
         run: ./scripts/setup-msvc.ps1 -Architecture ('${{ matrix.rid }}'.Substring(4))
       - name: Install LLVM
+        if: ${{ matrix.rid != 'win-arm64' }}
         shell: pwsh
         run: choco install llvm -y
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
@@ -146,14 +147,22 @@ jobs:
           dotnet publish artifacts/avalonia-smoke-src/AvaloniaStaticLinkSmoke.csproj -c Release -r '${{ matrix.rid }}' --configfile artifacts/avalonia-smoke-src/NuGet.config /p:PublishAot=true /p:SelfContained=true /p:PublishDir="$PWD/artifacts/smoke-${{ matrix.rid }}/" -bl:artifacts/windows-publish.binlog
           if ($LASTEXITCODE -ne 0) { throw 'NativeAOT publish failed' }
       - name: Run NativeAOT consumer on current Windows
-        if: ${{ matrix.rid != 'win-arm64' }}
+        env:
+          STATICLINK_SMOKE_AUTOCLOSE: '1'
         shell: pwsh
         run: |
           $app = Resolve-Path 'artifacts/smoke-${{ matrix.rid }}/AvaloniaStaticLinkSmoke.exe'
-          $process = Start-Process $app -WorkingDirectory (Split-Path $app) -PassThru
-          if ($process.WaitForExit(15000)) {
-            if ($process.ExitCode -ne 0) { throw "NativeAOT app exited with $($process.ExitCode)" }
-          } else { Stop-Process -Id $process.Id -Force }
+          $stdout = "$PWD/artifacts/smoke-${{ matrix.rid }}/smoke-stdout.log"
+          $stderr = "$PWD/artifacts/smoke-${{ matrix.rid }}/smoke-stderr.log"
+          $process = Start-Process $app -WorkingDirectory (Split-Path $app) -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          if (-not $process.WaitForExit(60000)) {
+            Stop-Process -Id $process.Id -Force
+            throw 'NativeAOT app timed out before completing the rendered-frame smoke test'
+          }
+          $process.Refresh()
+          Get-Content $stdout, $stderr
+          if ($process.ExitCode -ne 0) { throw "NativeAOT app exited with $($process.ExitCode)" }
+          if (-not (Select-String -Path $stdout -SimpleMatch 'STATICLINK_SMOKE_READY=' -Quiet)) { throw 'NativeAOT app did not confirm a rendered frame' }
       - name: Upload diagnostics and applications
         if: ${{ always() }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
