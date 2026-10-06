@@ -22,13 +22,21 @@ def get(url):
 
 def plan(config, upstream, published, force=False):
     result = []
+    published_versions = {v.lower() for v in published}
     for entry in config["branches"]:
         major = entry["major"]
         candidates = [v for v in upstream if re.fullmatch(r"\d+\.\d+\.\d+", v)
                       and int(v.split(".")[0]) == major]
         version = entry.get("fixed_version") or max(candidates, key=lambda v: tuple(map(int, v.split("."))))
         package = f"{version}-{entry['angle_branch']}.{entry['revision']}"
-        if entry.get("daily", True) and (force or package.lower() not in {v.lower() for v in published}):
+        # A repair revision is a deliberate release, not an upstream update.
+        # Daily checks skip this upstream/ANGLE pair if any revision exists.
+        prefix = f"{version}-{entry['angle_branch']}.".lower()
+        already_published = any(
+            value.startswith(prefix) and value[len(prefix):].isdigit()
+            for value in published_versions
+        )
+        if entry.get("daily", True) and (force or not already_published):
             result.append({"ref": entry["ref"], "skiasharp_version": version, "package_version": package})
     return result
 

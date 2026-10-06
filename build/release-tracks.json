@@ -1,5 +1,10 @@
 {
   "branches": [
-    {"major": 3, "ref": "skia3", "angle_branch": "7922", "revision": "2"}
+    {
+      "major": 3,
+      "ref": "skia3",
+      "angle_branch": "7922",
+      "revision": "1"
+    }
   ]
 }
