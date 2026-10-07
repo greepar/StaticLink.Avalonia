@@ -1,5 +1,7 @@
 # StaticLink.Avalonia
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 Static native libraries for Avalonia single-file NativeAOT publishing.
 
 ## Install
@@ -48,4 +50,6 @@ Use the RID you need, such as `win-x86`, `linux-x64`, `linux-arm64`, `osx-arm64`
 
 ## Native Package Automation
 
-`.github/workflows/nuget-avalonia-native.yml` runs daily and checks the latest stable `Avalonia` version on NuGet.org. If `StaticLink.Avalonia.Native.<AvaloniaVersion>.1` does not exist, it builds both macOS architectures from the matching Avalonia source tag, runs NativeAOT smoke tests, and publishes the package with NuGet Trusted Publishing.
+`.github/workflows/daily-avalonia-native.yml` runs daily and checks the latest stable Avalonia 11 and 12 versions on NuGet.org. If matching successful Actions artifacts are unavailable, it dispatches `.github/workflows/nuget-avalonia-native.yml` on the `avalonia-native` branch to build and validate packages. These daily runs produce Actions artifacts only and do not publish to NuGet.
+
+The Native package build workflow builds both macOS architectures from the matching Avalonia source tag and runs NativeAOT smoke tests. NuGet publication uses NuGet Trusted Publishing and must be explicitly enabled with the `publish_to_nuget` input when manually running the workflow.
