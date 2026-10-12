@@ -1,4 +1,4 @@
-> 3/4 分支构建更新：原生图形库与 macOS AvaloniaNative 已统一为 Linux 上的 Zig 入口；Windows/macOS runner 用于消费者运行验收。配置与真实编译的验证范围见 [CROSS-COMPILE.md](build/linux-toolchain/CROSS-COMPILE.md)，每日发布说明见 [DAILY-RELEASE.md](DAILY-RELEASE.md)。完整九平台回归与 Docker 镜像尚待 Action 实跑，不能视为已全部通过。
+> 3/4 分支的原生图形库使用 Linux 上的 Zig 构建。SkiaSharp 3.119.4、4.150.1、4.153.1 已通过九平台 Avalonia 运行验证与 macOS Metal 专项；每日发布必须重新通过运行关卡。验证范围与 Action 记录见 [RUNTIME-VALIDATION.md](RUNTIME-VALIDATION.md)。
 
 # StaticLink.Avalonia
 

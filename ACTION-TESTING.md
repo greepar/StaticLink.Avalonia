@@ -1,7 +1,9 @@
-# Manual artifact validation
+# Runtime-gated graphics validation
 
-Daily schedules are disabled during validation. No NuGet.org publication or
-GitHub Release is requested by the manual dispatcher on main.
+Daily graphics releases are enabled on main. All nine Avalonia runtime tests
+and macOS Metal must succeed before NuGet publication. See
+[RUNTIME-VALIDATION.md](RUNTIME-VALIDATION.md) for completed validation runs.
+The AvaloniaNative track remains independently managed.
 
 Before release builds, run nuget-static-graphics.yml on skia4 with
 environment_only=true. This checks the actual container's Python/depot_tools,
@@ -28,11 +30,9 @@ downloaded packages in a local NuGet feed and reference their exact versions.
 Smoke executables are retained even if a later runtime validation fails.
 An artifact is not evidence that all validation gates passed; check job results.
 
-The daily-native-release workflow on main currently supports manual dispatch
-only. Its three matrix jobs check out their own branch and dispatch independently.
-Use force_build=true to rebuild published versions for testing.
-After validation, enable the schedule on main only; non-default branches cannot
-run their own GitHub cron schedules. Publication remains an explicit opt-in.
-While publication is disabled, an unpublished package may be rebuilt on every
-check; add successful-run tracking before enabling artifact-only daily builds
-if avoiding repeated builds is required.
+The daily-native-release workflow on main checks skia3 and skia4 every day at
+02:20 UTC (10:20 Asia/Singapore), as well as supporting manual dispatch.
+Use force_build=true to rebuild published versions. Existing upstream/ANGLE
+versions are otherwise skipped. New candidates request NuGet publication, but
+runtime-verified blocks it if a required check fails, is cancelled, or is skipped.
+The NuGet Trusted Publishing policy must allow nuget-static-graphics.yml.
