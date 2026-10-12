@@ -1,6 +1,8 @@
 name: daily-native-release
 
 on:
+  schedule:
+    - cron: '20 2 * * *' # Daily at 10:20 Asia/Singapore
   workflow_dispatch:
     inputs:
       force_build:
@@ -22,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        branch: [skia3, skia4, avalonia-native]
+        branch: [skia3, skia4]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,26 +52,21 @@ jobs:
                   input=payload, text=True, check=True,
               )
 
-          if branch == "avalonia-native":
-              dispatch("nuget-avalonia-native.yml", {
-                  "force_build": force, "publish_to_nuget": False,
+          command = ["python3", "scripts/check-upstream-releases.py"]
+          if force:
+              command.append("--force")
+          subprocess.run(command, check=True)
+          for release in json.load(open("release-plan.json")):
+              if release["ref"] != branch:
+                  raise SystemExit("Release track does not match the checked-out branch")
+              dispatch("nuget-static-graphics.yml", {
+                  "skiasharp_version": release["skiasharp_version"],
+                  "publish_to_nuget": True, "publish_to_release": False,
               })
-          else:
-              command = ["python3", "scripts/check-upstream-releases.py"]
-              if force:
-                  command.append("--force")
-              subprocess.run(command, check=True)
-              for release in json.load(open("release-plan.json")):
-                  if release["ref"] != branch:
-                      raise SystemExit("Release track does not match the checked-out branch")
-                  dispatch("nuget-static-graphics.yml", {
-                      "skiasharp_version": release["skiasharp_version"],
-                      "publish_to_nuget": False, "publish_to_release": False,
-                  })
-                  print(f"Dispatched {release['package_version']} on {branch}")
+              print(f"Dispatched {release['package_version']} on {branch}")
           PY
       - uses: actions/upload-artifact@v4
-        if: ${{ always() && matrix.branch != 'avalonia-native' }}
+        if: ${{ always() }}
         with:
           name: daily-release-plan-${{ matrix.branch }}
           path: release-plan.json
