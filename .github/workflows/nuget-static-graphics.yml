@@ -508,6 +508,28 @@ jobs:
           path: artifacts/smoke-osx-arm64-metal/**
           if-no-files-found: warn
 
+  runtime-verified:
+    name: Require every Avalonia runtime test
+    runs-on: ubuntu-24.04
+    needs: [build-zig, pack, smoke-avalonia, smoke-macos-metal]
+    if: ${{ always() && inputs.environment_only != true && inputs.windows_retest_run_id == '' }}
+    steps:
+      - name: Reject failed, cancelled, or skipped validation
+        env:
+          BUILD_RESULT: ${{ needs.build-zig.result }}
+          PACK_RESULT: ${{ needs.pack.result }}
+          RUNTIME_RESULT: ${{ needs.smoke-avalonia.result }}
+          METAL_RESULT: ${{ needs.smoke-macos-metal.result }}
+        run: |
+          set -euo pipefail
+          for result in "$BUILD_RESULT" "$PACK_RESULT" "$RUNTIME_RESULT" "$METAL_RESULT"; do
+            if [ "$result" != success ]; then
+              echo "Publication blocked: all nine RID builds and rendered Avalonia smoke tests, including Metal, must succeed."
+              exit 1
+            fi
+          done
+          echo "All nine Avalonia runtime tests and macOS Metal passed." >> "$GITHUB_STEP_SUMMARY"
+
   publish-nuget:
     permissions:
       contents: read
@@ -515,6 +537,7 @@ jobs:
     runs-on: ubuntu-24.04
     needs:
       - pack
+      - runtime-verified
       - smoke-avalonia
       - smoke-macos-metal
     steps:

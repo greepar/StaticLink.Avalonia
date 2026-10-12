@@ -1,9 +1,11 @@
-# Daily releases (not enabled)
+# Daily graphics releases
 
-This branch currently runs manual artifact validation only. The independent
-three-branch dispatcher is on main and has no schedule yet. NuGet.org and
-GitHub Release publication are disabled for the initial runs.
+The dispatcher on main checks the latest stable SkiaSharp 3 and 4 every day.
+Existing upstream/ANGLE versions are skipped; force_build can rebuild them.
+NuGet publication requires all nine Zig builds, package checks, all nine Avalonia
+NativeAOT applications to render and exit successfully, and the macOS Metal test.
+A failed, cancelled, or skipped runtime check blocks publication. Windows-only
+retests and environment-only runs cannot authorize publication.
 
-See [ACTION-TESTING.md](ACTION-TESTING.md) for artifact names, the macOS native
-package used by graphics smoke tests, and the steps required before daily
-builds are enabled.
+NuGet Trusted Publishing must allow greepar/StaticLink.Avalonia and the workflow
+nuget-static-graphics.yml for the StaticLink.Avalonia package.
