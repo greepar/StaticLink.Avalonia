@@ -1,0 +1,28 @@
+--- a/BUILD.gn
++++ b/BUILD.gn
+@@ -427,7 +427,8 @@
+   ldflags = [ "-Wl,--build-id" ]
+ }
+ 
+-_use_copy_compiler_dll = angle_has_build && is_win
++declare_args() { angle_copy_compiler_dll = true }
++_use_copy_compiler_dll = angle_has_build && is_win && angle_copy_compiler_dll
+ 
+ if (_use_copy_compiler_dll) {
+   copy("copy_compiler_dll") {
+@@ -1534,6 +1535,7 @@
+ }
+ 
+ angle_static_library("libGLESv2_static") {
++  complete_static_lib = true
+ 
+   sources = libglesv2_sources
+   public_deps = [ ":libGLESv2_thin_static" ]
+@@ -1652,6 +1654,7 @@
+ }
+ 
+ libEGL_template("libEGL_static") {
++  complete_static_lib = true
+   target_type = "angle_static_library"
+   public_configs = [ ":angle_static_config" ]
+   deps = [ ":libGLESv2_static" ]

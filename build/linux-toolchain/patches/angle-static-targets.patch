@@ -1,0 +1,21 @@
+--- a/BUILD.gn
++++ b/BUILD.gn
+@@ -1523,7 +1523,18 @@
+   public_deps = [ ":libANGLE" ]
+ }
+ 
++angle_static_library("libANGLE_static") {
++  complete_static_lib = true
++  public_deps = [ ":libANGLE" ]
++}
++
++angle_static_library("libANGLE_with_capture_static") {
++  complete_static_lib = true
++  public_deps = [ ":libANGLE_with_capture" ]
++}
++
+ angle_static_library("libGLESv2_static") {
++
+   sources = libglesv2_sources
+   public_deps = [ ":libGLESv2_thin_static" ]
+ }

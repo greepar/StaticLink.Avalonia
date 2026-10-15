@@ -5,8 +5,8 @@ on:
     - cron: '20 2 * * *' # Daily at 10:20 Asia/Singapore
   workflow_dispatch:
     inputs:
-      force_build:
-        description: Build current stable versions even if already published
+      publish_to_nuget:
+        description: Publish candidates after every platform runtime test succeeds
         type: boolean
         default: false
 
@@ -24,50 +24,35 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        branch: [skia3, skia4]
+        major: ['11', '12']
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ matrix.branch }}
-      - name: Check and dispatch this branch
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Resolve official release and dispatch complete validation
         env:
           GH_TOKEN: ${{ github.token }}
-          TRACK_BRANCH: ${{ matrix.branch }}
-          FORCE_BUILD: ${{ inputs.force_build }}
+          AVALONIA_MAJOR: ${{ matrix.major }}
+          RELEASE_REF: ${{ github.ref_name }}
+          PUBLISH_TO_NUGET: ${{ github.event_name == 'schedule' || inputs.publish_to_nuget == true }}
         run: |
+          set -euo pipefail
+          python3 scripts/check-avalonia-releases.py --major "$AVALONIA_MAJOR"
           python3 - <<'PY'
-          import json
-          import os
-          import subprocess
-
-          branch = os.environ["TRACK_BRANCH"]
-          force = os.environ["FORCE_BUILD"] == "true"
-
-          def dispatch(workflow, inputs):
-              payload = json.dumps({"ref": branch, "inputs": inputs})
-              subprocess.run(
-                  ["gh", "api", "--method", "POST",
-                   f"repos/{os.environ['GITHUB_REPOSITORY']}/actions/workflows/{workflow}/dispatches",
-                   "--input", "-"],
-                  input=payload, text=True, check=True,
-              )
-
-          command = ["python3", "scripts/check-upstream-releases.py"]
-          if force:
-              command.append("--force")
-          subprocess.run(command, check=True)
-          for release in json.load(open("release-plan.json")):
-              if release["ref"] != branch:
-                  raise SystemExit("Release track does not match the checked-out branch")
-              dispatch("nuget-static-graphics.yml", {
-                  "skiasharp_version": release["skiasharp_version"],
-                  "publish_to_nuget": True, "publish_to_release": False,
-              })
-              print(f"Dispatched {release['package_version']} on {branch}")
+          import json, os, subprocess
+          plan = json.load(open('release-plan.json'))
+          payload = {'ref': os.environ['RELEASE_REF'], 'inputs': {
+              'avalonia_version': plan['avalonia_version'],
+              'publish_to_nuget': os.environ['PUBLISH_TO_NUGET'] == 'true',
+              'publish_to_release': False,
+          }}
+          subprocess.run(['gh', 'api', '--method', 'POST',
+                          'repos/' + os.environ['GITHUB_REPOSITORY'] + '/actions/workflows/nuget-static-graphics.yml/dispatches',
+                          '--input', '-'], input=json.dumps(payload), text=True, check=True)
+          print('Dispatched complete runtime validation for ' + plan['package_version'])
           PY
-      - uses: actions/upload-artifact@v4
+      - name: Upload daily release plan
         if: ${{ always() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: daily-release-plan-${{ matrix.branch }}
+          name: daily-release-plan-${{ matrix.major }}
           path: release-plan.json
           if-no-files-found: warn

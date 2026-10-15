@@ -1,0 +1,11 @@
+--- a/src/xps/SkXPSDevice.cpp
++++ b/src/xps/SkXPSDevice.cpp
+@@ -337,7 +337,7 @@
+     return true;
+ }
+ 
+-static HRESULT subset_typeface(const SkXPSDevice::TypefaceUse& current) {
++HRESULT subset_typeface(const SkXPSDevice::TypefaceUse& current) {
+     //The CreateFontPackage API is only supported on desktop, not in UWP
+     #if defined(SK_WINUWP) || defined(SK_BUILD_FOR_WINRT) || defined(SK_BUILD_FOR_NANOSERVER)
+     return E_NOTIMPL;

@@ -1,0 +1,25 @@
+target_os = "win"
+target_cpu = "@CPU@"
+is_debug = false
+is_component_build = false
+is_clang = true
+treat_warnings_as_errors = false
+use_custom_libcxx = false
+use_custom_libcxx_for_host = false
+use_sysroot = false
+use_lld = false
+use_thin_lto = false
+symbol_level = 0
+angle_build_tests = false
+build_angle_deqp_tests = false
+angle_enable_swiftshader = false
+angle_enable_vulkan = false
+angle_enable_wgpu = false
+clang_use_chrome_plugins = false
+enable_rust = false
+
+visual_studio_version = "2022"
+windows_sdk_version = "10.0.22621.0"
+clang_version = "19"
+use_clang_modules = false
+angle_copy_compiler_dll = false

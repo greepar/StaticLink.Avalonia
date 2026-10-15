@@ -33,8 +33,11 @@ ensure_depot_tools() {
   if [[ ! -d "$depot_dir/.git" ]]; then
     git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git "$depot_dir"
   else
-    git -C "$depot_dir" pull --ff-only
+    : # The pinned checkout is refreshed below
   fi
+  git -C "$depot_dir" fetch --depth 1 origin 8a5434051036b32412a2ecb10c213a72e3f3ccb9
+  git -C "$depot_dir" checkout -q --force FETCH_HEAD
+  export DEPOT_TOOLS_UPDATE=0
   export PATH="$depot_dir:$PATH"
 }
 
@@ -56,10 +59,14 @@ copy_first_existing() {
 sync_skiasharp() {
   local src="$WORK_DIR/SkiaSharp-$SKIASHARP_VERSION"
   if [[ ! -d "$src/.git" ]]; then
-    git clone --depth 1 --branch "release/$SKIASHARP_VERSION" https://github.com/mono/SkiaSharp.git "$src"
+    git clone --depth 1 --branch "v$SKIASHARP_VERSION" https://github.com/mono/SkiaSharp.git "$src"
   else
-    git -C "$src" fetch --depth 1 origin "release/$SKIASHARP_VERSION"
+    git -C "$src" fetch --depth 1 origin "${SKIASHARP_REVISION:-refs/tags/v$SKIASHARP_VERSION}"
     git -C "$src" checkout -q FETCH_HEAD
+  fi
+  if [[ -n "${SKIASHARP_REVISION:-}" ]]; then
+    git -C "$src" fetch --depth 1 origin "$SKIASHARP_REVISION"
+    git -C "$src" checkout -q --force FETCH_HEAD
   fi
   git -C "$src" submodule update --init --depth 1 externals/skia >&2
   echo "$src"
@@ -74,7 +81,7 @@ import sys
 
 path = pathlib.Path(sys.argv[1])
 text = path.read_text()
-deps_path = path.with_name("DEPS")
+deps_path = path.parent.parent / "DEPS"
 if deps_path.exists():
     deps = deps_path.read_text()
     deps = re.sub(r'^\s*"third_party/externals/dng_sdk"\s*:\s*"[^"]+",\s*\n', '', deps, flags=re.MULTILINE)
@@ -147,7 +154,7 @@ extra_cflags = [ "-DSKIA_C_DLL" ]
 extra_cflags_cc = [ "-frtti" ]
 EOF_ARGS
 
-  (cd "$skia_dir" && "$skia_dir/bin/gn" gen "$out_dir")
+  python3 "$ROOT_DIR/build/linux-toolchain/skia_compat.py" --source "$skia_dir" --out "$out_dir"
   ninja -C "$out_dir" -j "$BUILD_JOBS" skia SkiaSharp HarfBuzzSharp
   copy_first_existing "$OUTPUT_DIR/libskia.a" "$out_dir/libskia.a" "$out_dir/obj/libskia.a"
   copy_first_existing "$OUTPUT_DIR/libSkiaSharp.a" "$out_dir/libSkiaSharp.a" "$out_dir/obj/libSkiaSharp.a"
@@ -161,6 +168,10 @@ sync_angle() {
   else
     git -C "$src" fetch --depth 1 origin "chromium/$ANGLE_BRANCH"
     git -C "$src" checkout -q FETCH_HEAD
+  fi
+  if [[ -n "${ANGLE_REVISION:-}" ]]; then
+    git -C "$src" fetch --depth 1 origin "$ANGLE_REVISION"
+    git -C "$src" checkout -q --force FETCH_HEAD
   fi
   echo "$src"
 }

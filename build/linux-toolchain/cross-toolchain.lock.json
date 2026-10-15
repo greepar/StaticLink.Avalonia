@@ -1,0 +1,10 @@
+{
+  "zig_version": "0.14.1",
+  "macos_sdk_version": "15.5",
+  "macos_sdk_sha256": "c15cf0f3f17d714d1aa5a642da8e118db53d79429eb015771ba816aa7c6c1cbd",
+  "mingw_headers_version": "11.0.1-3build1",
+  "mingw_package_sha256": "4a42fd30fbc3838c58c929d8a4882682fc12408bb7a0e6cafa913c0f0a57c187",
+  "llvm_availability_revision": "llvmorg-19.1.7",
+  "llvm_availability_sha256": "bc0b9f10e8d1a1ac5905d710f1c9fead23878e31233748d580393edc4e3bfc18",
+  "angle_gn_revision": "e331ddb6e93389abfc75c611690bb82f5274029e"
+}

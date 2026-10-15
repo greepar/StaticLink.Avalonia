@@ -12,6 +12,7 @@ BUILD_JOBS="${BUILD_JOBS:-$(nproc)}"
 ANGLE_PATCH_DIR="${ANGLE_PATCH_DIR:-$ROOT_DIR/External/NativeStatic/patches}"
 LLVM_AR="${LLVM_AR:-llvm-ar-19}"
 SKIA_DEPS_RETRIES="${SKIA_DEPS_RETRIES:-3}"
+SOURCE_DOWNLOAD_ATTEMPTS="${SOURCE_DOWNLOAD_ATTEMPTS:-5}"
 
 usage() {
   cat <<'USAGE'
@@ -27,6 +28,7 @@ Environment:
   BUILD_JOBS          Ninja parallelism. Default: nproc
   ANGLE_PATCH_DIR     ANGLE patch directory. Default: External/NativeStatic/patches
   LLVM_AR             llvm-ar command used to expand thin archives. Default: llvm-ar-19
+  SOURCE_DOWNLOAD_ATTEMPTS  Maximum attempts per source download. Default: 5
 USAGE
 }
 
@@ -53,10 +55,20 @@ ensure_tools() {
 }
 
 ensure_depot_tools() {
-  local depot_dir="$WORK_DIR/depot_tools"
+  local depot_dir="${DEPOT_TOOLS_DIR:-$WORK_DIR/depot_tools}"
   local python_bin_dir
   python_bin_dir="$(dirname "$(command -v python3)")"
-  if [[ ! -d "$depot_dir/.git" ]]; then
+  if [[ -n "${DEPOT_TOOLS_REVISION:-}" ]]; then
+    if [[ ! -d "$depot_dir/.git" ]]; then
+      git init "$depot_dir"
+      git -C "$depot_dir" remote add origin https://chromium.googlesource.com/chromium/tools/depot_tools.git
+    fi
+    if [[ "$(git -C "$depot_dir" rev-parse HEAD 2>/dev/null || true)" != "$DEPOT_TOOLS_REVISION" ]]; then
+      git -C "$depot_dir" fetch --depth 1 origin "$DEPOT_TOOLS_REVISION"
+      git -C "$depot_dir" checkout --detach FETCH_HEAD
+    fi
+    export DEPOT_TOOLS_UPDATE=0
+  elif [[ ! -d "$depot_dir/.git" ]]; then
     git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git "$depot_dir"
   else
     git -C "$depot_dir" pull --ff-only
@@ -134,15 +146,59 @@ PY
   export PYTHONPATH="$module_dir:${PYTHONPATH:-}"
 }
 
+retry_source_download() {
+  local attempt status
+  if [[ ! "$SOURCE_DOWNLOAD_ATTEMPTS" =~ ^[1-9][0-9]*$ ]]; then
+    echo "SOURCE_DOWNLOAD_ATTEMPTS must be a positive integer" >&2
+    return 1
+  fi
+  for ((attempt = 1; attempt <= SOURCE_DOWNLOAD_ATTEMPTS; attempt++)); do
+    if "$@"; then
+      return 0
+    else
+      status=$?
+    fi
+    if ((attempt == SOURCE_DOWNLOAD_ATTEMPTS)); then
+      echo "Source download failed after $attempt attempts; stopping" >&2
+      return "$status"
+    fi
+    echo "Source download failed ($attempt/$SOURCE_DOWNLOAD_ATTEMPTS); retrying in $((attempt * 10)) seconds" >&2
+    sleep "$((attempt * 10))"
+  done
+}
+
 sync_skiasharp() {
   local src="$WORK_DIR/SkiaSharp-$SKIASHARP_VERSION"
+  local revision="${SKIASHARP_REVISION:-release/$SKIASHARP_VERSION}"
   if [[ ! -d "$src/.git" ]]; then
-    git clone --depth 1 --branch "release/$SKIASHARP_VERSION" https://github.com/mono/SkiaSharp.git "$src"
-  else
-    git -C "$src" fetch --depth 1 origin "release/$SKIASHARP_VERSION"
-    git -C "$src" checkout -q FETCH_HEAD
+    # Profiles may share Skia while locking different managed/native companions.
+    # Reuse commit objects locally, while checking out a clean pinned tree.
+    if [[ "$revision" =~ ^[0-9a-f]{40}$ ]]; then
+      local candidate
+      for candidate in "${WORK_DIR%/*}"/*/"SkiaSharp-$SKIASHARP_VERSION"; do
+        [[ -d "$candidate/.git" ]] || continue
+        [[ "$(git -C "$candidate" rev-parse HEAD 2>/dev/null)" == "$revision" ]] || continue
+        git clone --shared "$candidate" "$src" >&2 || return $?
+        git -C "$src" remote set-url origin https://github.com/mono/SkiaSharp.git || return $?
+        if [[ -e "$candidate/externals/skia/.git" && ! -e "$src/externals/skia/.git" ]]; then
+          git clone --shared "$candidate/externals/skia" "$src/externals/skia" >&2 || return $?
+          git -C "$src/externals/skia" remote set-url origin "$(git -C "$candidate/externals/skia" remote get-url origin)" || return $?
+        fi
+        break
+      done
+    fi
+    if [[ ! -d "$src/.git" ]]; then
+      git init "$src" >&2 || return $?
+      git -C "$src" remote add origin https://github.com/mono/SkiaSharp.git || return $?
+    fi
   fi
-  git -C "$src" submodule update --init --depth 1 externals/skia >&2
+  local current
+  current="$(git -C "$src" rev-parse HEAD 2>/dev/null || true)"
+  if [[ ! "$revision" =~ ^[0-9a-f]{40}$ || "$current" != "$revision" ]]; then
+    retry_source_download git -C "$src" fetch --depth 1 origin "$revision" >&2 || return $?
+    git -C "$src" checkout --detach FETCH_HEAD >&2 || return $?
+  fi
+  retry_source_download git -C "$src" submodule update --init --depth 1 externals/skia >&2 || return $?
   echo "$src"
 }
 
@@ -155,7 +211,7 @@ import sys
 
 path = pathlib.Path(sys.argv[1])
 text = path.read_text()
-deps_path = path.with_name("DEPS")
+deps_path = path.parent.parent / "DEPS"
 if deps_path.exists():
     deps = deps_path.read_text()
     deps = re.sub(r'^\s*"third_party/externals/dng_sdk"\s*:\s*"[^"]+",\s*\n', '', deps, flags=re.MULTILINE)
@@ -169,21 +225,21 @@ PY
 
 sync_skia_deps() {
   local skia_dir="$1/externals/skia"
-  if [[ ! -x "$skia_dir/bin/gn" ]]; then
-    prepare_skia_git_sync_deps "$skia_dir"
+  # GN can exist after a partial/failed sync; it is not a completion marker.
+  # git-sync-deps reuses already-correct checkouts and repairs missing dependencies.
+  prepare_skia_git_sync_deps "$skia_dir"
 
-    local attempt
-    for attempt in $(seq 1 "$SKIA_DEPS_RETRIES"); do
-      if python3 "$skia_dir/tools/git-sync-deps"; then
-        return 0
-      fi
-      if [[ "$attempt" == "$SKIA_DEPS_RETRIES" ]]; then
-        return 1
-      fi
-      echo "git-sync-deps failed; retrying ($attempt/$SKIA_DEPS_RETRIES)..." >&2
-      sleep 10
-    done
-  fi
+  local attempt
+  for attempt in $(seq 1 "$SKIA_DEPS_RETRIES"); do
+    if GIT_SYNC_DEPS_SKIP_EMSDK=1 python3 "$skia_dir/tools/git-sync-deps"; then
+      return 0
+    fi
+    if [[ "$attempt" == "$SKIA_DEPS_RETRIES" ]]; then
+      return 1
+    fi
+    echo "git-sync-deps failed; retrying ($attempt/$SKIA_DEPS_RETRIES)..." >&2
+    sleep 10
+  done
 }
 
 build_skia() {
@@ -233,7 +289,7 @@ extra_cflags_cc = [ "-frtti" ]
 extra_ldflags = [ "-static-libstdc++", "-static-libgcc" ]
 EOF_ARGS
 
-  (cd "$skia_dir" && "$skia_dir/bin/gn" gen "$out_dir")
+  python3 "$ROOT_DIR/build/linux-toolchain/skia_compat.py" --source "$skia_dir" --out "$out_dir"
   ninja -C "$out_dir" -j "$BUILD_JOBS" skia SkiaSharp HarfBuzzSharp
 
   copy_first_existing "$OUTPUT_DIR/libskia.a" \
@@ -249,11 +305,16 @@ EOF_ARGS
 
 sync_angle() {
   local src="$WORK_DIR/ANGLE-$ANGLE_BRANCH"
+  local revision="${ANGLE_REVISION:-chromium/$ANGLE_BRANCH}"
   if [[ ! -d "$src/.git" ]]; then
-    git clone --depth 1 --branch "chromium/$ANGLE_BRANCH" https://github.com/google/angle.git "$src"
-  else
-    git -C "$src" fetch --depth 1 origin "chromium/$ANGLE_BRANCH"
-    git -C "$src" checkout -q FETCH_HEAD
+    git init "$src" >&2 || return $?
+    git -C "$src" remote add origin "${ANGLE_REPOSITORY:-https://github.com/google/angle.git}" || return $?
+  fi
+  local current
+  current="$(git -C "$src" rev-parse HEAD 2>/dev/null || true)"
+  if [[ ! "$revision" =~ ^[0-9a-f]{40}$ || "$current" != "$revision" ]]; then
+    retry_source_download git -C "$src" fetch --depth 1 origin "$revision" >&2 || return $?
+    git -C "$src" checkout --detach FETCH_HEAD >&2 || return $?
   fi
   echo "$src"
 }
@@ -544,4 +605,6 @@ main() {
   esac
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

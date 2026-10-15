@@ -18,10 +18,10 @@ jobs:
   repack:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           dotnet-version: "10.0.x"
 
@@ -88,7 +88,7 @@ jobs:
           unzip -Z1 "$package" | grep -Fx 'buildTransitive/StaticLink.Avalonia.targets'
 
       - name: Upload NuGet artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: staticlink-avalonia-repacked-nuget
           path: artifacts/nuget/*.nupkg

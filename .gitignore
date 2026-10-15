@@ -5,3 +5,4 @@ artifacts/
 *.snupkg
 External/NativeStatic/.work/
 External/AvaloniaNative/.work/
+__pycache__/

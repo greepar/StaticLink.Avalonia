@@ -1,17 +1,27 @@
-# Daily SkiaSharp graphics releases
+# Daily official Avalonia releases
 
-At 10:20 Asia/Singapore (02:20 UTC), main dispatches the skia3 and skia4 tracks.
-Each branch checks the latest stable upstream release in its own major and skips
-upstream/ANGLE combinations already published to NuGet. Manual force_build=true
-can rebuild an existing version.
+The `daily-native-release.yml` workflow selects the latest official stable
+Avalonia release in each of the 11 and 12 version lines. Both use the same
+`StaticLink.Avalonia` package ID, with formal versions `<AvaloniaVersion>.1`.
+It dispatches `nuget-static-graphics.yml` on the current default branch.
 
-Every release builds nine RIDs with Zig, packs the candidate NuGet locally,
-and runs an Avalonia NativeAOT application on each target. A rendered-frame
-marker and successful process exit are required. The Avalonia 12 macOS Metal
-check must also pass. Failed, cancelled, or skipped required validation blocks
-NuGet publication through the runtime-verified job. Environment-only and
-Windows-only retests cannot publish.
+The workflow is currently disabled while the first candidates are validated.
+After validation it runs at 02:20 UTC (10:20 Asia/Singapore). Each daily run
+validates both lines, even if the upstream version is unchanged. NuGet skips
+duplicate versions. Manual dispatch defaults to validation without publication.
 
-Trusted Publishing must allow nuget-static-graphics.yml in
-greepar/StaticLink.Avalonia for StaticLink.Avalonia. The Native package has a
-separate workflow and policy; it is not dispatched by this graphics schedule.
+Publication requires all nine Zig target builds, matching Avalonia.Native
+archives, package provenance and hash checks, and a real Avalonia NativeAOT
+application rendering and exiting normally on every target. Avalonia 12 also
+requires Metal. A failed, cancelled, or skipped required test blocks publishing.
+Environment-only and Windows-only retests cannot publish.
+
+Trusted Publishing must allow `greepar/StaticLink.Avalonia` and
+`nuget-static-graphics.yml` for both the `StaticLink.Avalonia` and
+`StaticLink.Avalonia.Native` packages, which are validated together.
+One policy owned by the account that owns both packages can cover them with the
+`StaticLink.Avalonia*` package scope. No GitHub environment is used, so leave the
+policy's environment field empty.
+
+The separate Native artifact-only schedule is retained for its historical
+branch; it does not publish NuGet packages.

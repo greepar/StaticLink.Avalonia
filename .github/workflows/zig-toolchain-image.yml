@@ -1,0 +1,115 @@
+name: pinned-zig-toolchain-image
+
+on:
+  workflow_call:
+    inputs:
+      image:
+        type: string
+        default: ''
+      validation_rids:
+        type: string
+        default: '[]'
+    outputs:
+      image:
+        description: Immutable Debian 12 Zig toolchain image reference
+        value: ${{ jobs.image.outputs.image }}
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    concurrency:
+      group: zig-toolchain-image-${{ github.repository }}
+      cancel-in-progress: false
+      queue: max
+    outputs:
+      image: ${{ steps.publish.outputs.image }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Publish or reuse exact toolchain image
+        id: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+          REPOSITORY: ${{ github.repository }}
+          VALIDATION_RIDS: ${{ inputs.validation_rids || '[]' }}
+          REQUESTED_IMAGE: ${{ inputs.image }}
+          BASE_HASH: ${{ hashFiles('build/linux-toolchain/Dockerfile') }}
+          RECIPE_HASH: ${{ hashFiles('build/linux-toolchain/Dockerfile*', 'build/linux-toolchain/fetch-linux-sysroots.py', 'build/linux-toolchain/linux-sysroots*.lock.json', 'build/linux-toolchain/zig-cross.py', 'build/linux-toolchain/validate-toolchain.py', 'build/linux-toolchain/probe-cross.py') }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+          repository="ghcr.io/${REPOSITORY,,}-zig"
+          if [ -n "$REQUESTED_IMAGE" ]; then
+            case "$REQUESTED_IMAGE" in "$repository"@sha256:*) ;; *) echo 'Use an immutable image from this repository' >&2; exit 1 ;; esac
+            [[ "${REQUESTED_IMAGE##*@sha256:}" =~ ^[0-9a-f]{64}$ ]]
+            image="$REQUESTED_IMAGE"
+            docker pull "$image"
+            built_image=false
+          else
+          image="$repository:recipe-$RECIPE_HASH"
+          base="$repository:debian12-$BASE_HASH"
+          # A registry/network/authentication failure is not a missing recipe.
+          pull_or_missing() {
+            local reference="$1" attempt log
+            log="$(mktemp)"
+            for attempt in 1 2 3; do
+              if docker pull "$reference" >"$log" 2>&1; then
+                cat "$log"
+                rm -f "$log"
+                return 0
+              fi
+              cat "$log" >&2
+              if grep -Eq 'manifest unknown|manifest .*not found' "$log"; then
+                rm -f "$log"
+                return 1
+              fi
+              if [ "$attempt" != 3 ]; then sleep 5; fi
+            done
+            rm -f "$log"
+            echo "Cannot access $reference; refusing to rebuild an existing image." >&2
+            exit 1
+          }
+          built_image=false
+          if ! pull_or_missing "$image"; then
+            if ! pull_or_missing "$base"; then
+              docker build --platform linux/amd64 \
+                --label "org.opencontainers.image.source=https://github.com/$REPOSITORY" \
+                -t "$base" build/linux-toolchain
+              docker push "$base"
+              docker pull "$base"
+            fi
+            base_digest="$(docker image inspect --format '{{index .RepoDigests 0}}' "$base")"
+            docker build --platform linux/amd64 \
+              --build-arg "TOOLCHAIN_IMAGE=$base_digest" \
+              --label "org.opencontainers.image.source=https://github.com/$REPOSITORY" \
+              -f build/linux-toolchain/Dockerfile.cross-probe \
+              -t "$image" build/linux-toolchain
+            built_image=true
+          fi
+          fi
+          mkdir -p artifacts/toolchain-environment
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp -e DOTNET_CLI_HOME=/tmp -e ZIG_GLOBAL_CACHE_DIR=/tmp/zig-cache \
+            -v "$PWD/artifacts/toolchain-environment:/validation" \
+            --entrypoint python3 "$image" /opt/staticlink/validate-toolchain.py --output /validation --rids "$VALIDATION_RIDS"
+          if [ "$built_image" = true ]; then
+            docker push "$image"
+            docker pull "$image"
+          fi
+          digest="$(docker image inspect --format '{{index .RepoDigests 0}}' "$image")"
+          case "$digest" in "$repository"@sha256:*) ;; *) echo 'No immutable image digest' >&2; exit 1 ;; esac
+          echo "image=$digest" >> "$GITHUB_OUTPUT"
+          echo "Toolchain: $digest" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload environment validation report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: toolchain-environment-validation
+          path: artifacts/toolchain-environment/
+          if-no-files-found: warn

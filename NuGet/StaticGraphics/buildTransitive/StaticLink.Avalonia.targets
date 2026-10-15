@@ -1,4 +1,8 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup Condition="'$(PublishAot)' == 'true' and ('$(RuntimeIdentifier)' == 'osx-x64' or '$(RuntimeIdentifier)' == 'osx-arm64')">
+        <!-- The bundled Zig C++ runtime is linked for macOS 13. -->
+        <AppleMinOSVersion Condition="'$(AppleMinOSVersion)' == ''">13.0</AppleMinOSVersion>
+    </PropertyGroup>
     <PropertyGroup>
         <_StaticLinkAvaloniaRid Condition="'$(RuntimeIdentifier)' == 'win-x64'">win-x64</_StaticLinkAvaloniaRid>
         <_StaticLinkAvaloniaRid Condition="'$(RuntimeIdentifier)' == 'win-x86'">win-x86</_StaticLinkAvaloniaRid>
@@ -22,8 +26,8 @@
         <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/skia_x86_stdcall_thunks.lib" Condition="'$(RuntimeIdentifier)' == 'win-x86' and Exists('$(_StaticLinkAvaloniaNativeRoot)/skia_x86_stdcall_thunks.lib')" />
         <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/skia.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/skia.lib')" />
         <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/SkiaSharp.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/SkiaSharp.lib')" />
-        <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libANGLE_static.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libANGLE_static.lib')" />
         <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libGLESv2_static.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libGLESv2_static.lib')" />
+        <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libANGLE_static.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libANGLE_static.lib')" />
         <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libc++.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libc++.lib')" />
         <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libc++abi.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libc++abi.lib')" />
         <LinkerArg Include="d3d9.lib;dxguid.lib" />
@@ -65,8 +69,8 @@
             <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/skia_x86_stdcall_thunks.lib" Condition="'$(RuntimeIdentifier)' == 'win-x86' and Exists('$(_StaticLinkAvaloniaNativeRoot)/skia_x86_stdcall_thunks.lib')" />
             <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/skia.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/skia.lib')" />
             <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/SkiaSharp.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/SkiaSharp.lib')" />
-            <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libANGLE_static.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libANGLE_static.lib')" />
             <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libGLESv2_static.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libGLESv2_static.lib')" />
+            <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libANGLE_static.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libANGLE_static.lib')" />
             <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libc++.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libc++.lib')" />
             <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libc++abi.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libc++abi.lib')" />
             <LinkerArg Include="d3d9.lib;dxguid.lib" />
@@ -84,8 +88,8 @@
         <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libHarfBuzzSharp.a" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libHarfBuzzSharp.a')" />
         <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libskia.a" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libskia.a')" />
         <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libSkiaSharp.a" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libSkiaSharp.a')" />
-        <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libANGLE_static.a" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libANGLE_static.a')" />
         <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libGLESv2_static.a" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libGLESv2_static.a')" />
+        <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libANGLE_static.a" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libANGLE_static.a')" />
         <NativeSystemLibrary Include="stdc++" />
         <NativeSystemLibrary Include="gcc_eh" />
         <NativeSystemLibrary Include="fontconfig" />
@@ -162,5 +166,80 @@
             <_StaticLinkAvaloniaFilesToDelete Include="$(PublishDir)libSkiaSharp.dylib" />
         </ItemGroup>
         <Delete Files="@(_StaticLinkAvaloniaFilesToDelete)" TreatErrorsAsWarnings="true" />
+    </Target>
+    <!-- NativeAOT supplies MSVC CRT startup. Keep MinGW helper routines,
+         but let MSVC own TLS initialization and Control Flow Guard pointers. -->
+    <Target Name="StaticLinkAvaloniaPrepareMsvcRuntime"
+            BeforeTargets="StaticLinkAvaloniaAddZigRuntime"
+            Condition="'$(PublishAot)' == 'true' and $(RuntimeIdentifier.StartsWith('win-')) and Exists('$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/libmingw32.lib')">
+        <PropertyGroup>
+            <_StaticLinkAvaloniaMsvcRuntime>$(IntermediateOutputPath)staticlink-msvc/libmingw32.lib</_StaticLinkAvaloniaMsvcRuntime>
+        </PropertyGroup>
+        <MakeDir Directories="$(IntermediateOutputPath)staticlink-msvc" />
+        <Copy SourceFiles="$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/libmingw32.lib" DestinationFiles="$(_StaticLinkAvaloniaMsvcRuntime)" />
+        <Exec Command="llvm-ar d &quot;$(_StaticLinkAvaloniaMsvcRuntime)&quot; tlssup.obj mingw_cfguard_support.obj" />
+        <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'win-x86'">
+            <_StaticLinkAvaloniaMsvcUnwind>$(IntermediateOutputPath)staticlink-msvc/unwind.lib</_StaticLinkAvaloniaMsvcUnwind>
+        </PropertyGroup>
+        <Exec Condition="'$(RuntimeIdentifier)' == 'win-x86'" Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)StaticLink.Avalonia.SafeSeh.ps1&quot; -InputLibrary &quot;$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/unwind.lib&quot; -OutputLibrary &quot;$(_StaticLinkAvaloniaMsvcUnwind)&quot;" />
+        <ItemGroup>
+            <FileWrites Include="$(_StaticLinkAvaloniaMsvcRuntime)" />
+            <FileWrites Include="$(IntermediateOutputPath)staticlink-msvc/**/*" />
+        </ItemGroup>
+    </Target>
+    <!-- SetupOSSpecificProps snapshots NativeLibrary into LinkerArg. -->
+    <Target Name="StaticLinkAvaloniaPrepareCppInitializers"
+            BeforeTargets="StaticLinkAvaloniaAddZigRuntime"
+            Condition="'$(PublishAot)' == 'true' and $(RuntimeIdentifier.StartsWith('win-')) and Exists('$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/c++.lib')">
+        <PropertyGroup>
+            <_StaticLinkAvaloniaMsvcCpp>$(IntermediateOutputPath)staticlink-msvc/c++.lib</_StaticLinkAvaloniaMsvcCpp>
+        </PropertyGroup>
+        <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)StaticLink.Avalonia.CppInitializers.ps1&quot; -InputLibrary &quot;$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/c++.lib&quot; -OutputLibrary &quot;$(_StaticLinkAvaloniaMsvcCpp)&quot;" />
+        <ItemGroup>
+            <FileWrites Include="$(_StaticLinkAvaloniaMsvcCpp)" />
+        </ItemGroup>
+    </Target>
+    <Target Name="StaticLinkAvaloniaAddZigRuntime"
+            BeforeTargets="SetupOSSpecificProps"
+            Condition="'$(PublishAot)' == 'true' and Exists('$(_StaticLinkAvaloniaNativeRoot)/zig-build.json')">
+        <PropertyGroup Condition="$(RuntimeIdentifier.StartsWith('win-'))">
+            <CppLinker>lld-link</CppLinker>
+        </PropertyGroup>
+        <ItemGroup>
+            <!-- Use Zig's static C++ implementation, but use the consumer's
+                 Windows SDK import libraries and MSVC's UCRT startup helpers. -->
+            <NativeLibrary Include="$(_StaticLinkAvaloniaMsvcCpp);$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/c++abi.lib;$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/compiler_rt.lib" Condition="$(RuntimeIdentifier.StartsWith('win-'))" />
+            <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/unwind.lib" Condition="$(RuntimeIdentifier.StartsWith('win-')) and '$(RuntimeIdentifier)' != 'win-x86'" />
+            <NativeLibrary Include="$(_StaticLinkAvaloniaMsvcUnwind)" Condition="'$(RuntimeIdentifier)' == 'win-x86'" />
+            <NativeLibrary Include="ucrt.lib;libvcruntime.lib;msvcrt.lib" Condition="$(RuntimeIdentifier.StartsWith('win-'))" />
+            <LinkerArg Include="dwrite.lib;windowscodecs.lib;d3d11.lib;dwmapi.lib;shlwapi.lib;setupapi.lib;shell32.lib;oleaut32.lib;uuid.lib" Condition="$(RuntimeIdentifier.StartsWith('win-'))" />
+            <NativeLibrary Include="$(_StaticLinkAvaloniaMsvcRuntime)" Condition="$(RuntimeIdentifier.StartsWith('win-')) and Exists('$(_StaticLinkAvaloniaMsvcRuntime)')" />
+            <!-- .NET embeds its own LLVM unwind implementation. Zig's copy
+                 has overlapping C++ symbols with a different internal ABI. -->
+            <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/*.a" Exclude="$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/libunwind.a" Condition="$(RuntimeIdentifier.StartsWith('linux-'))" />
+            <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/*.a" Condition="$(RuntimeIdentifier.StartsWith('osx-'))" />
+            <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libEGL_static.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libEGL_static.lib')" />
+            <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libEGL_static.a" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libEGL_static.a')" />
+            <NativeSystemLibrary Include="X11;Xext;xcb;wayland-client;wayland-egl;ffi" Condition="$(RuntimeIdentifier.StartsWith('linux-'))" />
+            <LinkerArg Include="/lldmingw" Condition="$(RuntimeIdentifier.StartsWith('win-'))" />
+            <!-- Zig uses dynamic UCRT. Avoid pulling the static CRT startup
+                 through MSVC TLS helpers; retain MSVC exception handling. -->
+            <LinkerArg Include="/NODEFAULTLIB:libcmt.lib;/DEFAULTLIB:msvcrt.lib;/DEFAULTLIB:libvcruntime.lib" Condition="$(RuntimeIdentifier.StartsWith('win-'))" />
+        </ItemGroup>
+    </Target>
+    <Target Name="StaticLinkAvaloniaUseLldCompatibleArguments"
+            BeforeTargets="LinkNative"
+            Condition="'$(PublishAot)' == 'true' and $(RuntimeIdentifier.StartsWith('win-')) and Exists('$(_StaticLinkAvaloniaNativeRoot)/zig-build.json')">
+        <!-- NativeAOT's Windows SDK chooses link.exe during evaluation.
+             Select LLD after setup and keep its supported argument set. -->
+        <PropertyGroup>
+            <CppLinker>lld-link</CppLinker>
+        </PropertyGroup>
+        <ItemGroup>
+            <LinkerArg Remove="@(LinkerArg)" Condition="$([System.String]::Copy('%(LinkerArg.Identity)').StartsWith('/SOURCELINK:'))" />
+            <_StaticLinkAvaloniaLldArg Include="@(LinkerArg->Replace(' /NOEXP ', ' '))" />
+            <LinkerArg Remove="@(LinkerArg)" />
+            <LinkerArg Include="@(_StaticLinkAvaloniaLldArg)" />
+        </ItemGroup>
     </Target>
 </Project>

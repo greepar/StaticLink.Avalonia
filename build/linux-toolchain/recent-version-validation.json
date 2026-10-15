@@ -1,0 +1,68 @@
+{
+  "date": "2026-10-04",
+  "zig": "0.14.1",
+  "versions": [
+    "3.119.2",
+    "3.119.4",
+    "4.150.3",
+    "4.150.5",
+    "4.153.1"
+  ],
+  "configuration": {
+    "passed": 45,
+    "targets_per_version": 9,
+    "full_build": false
+  },
+  "full_skia_build_and_executable_link": {
+    "win-x64": [
+      "3.119.2",
+      "3.119.4",
+      "4.150.3",
+      "4.150.5",
+      "4.153.1"
+    ],
+    "win-x86": [
+      "3.119.4"
+    ],
+    "linux-x64": [
+      "3.119.4"
+    ],
+    "linux-arm64": [
+      "3.119.4"
+    ],
+    "osx-arm64": [
+      "4.153.1"
+    ]
+  },
+  "angle": {
+    "linux-x64": "3.119.4: six archives compiled and both executable links passed",
+    "win-x86": "3.119.4: fixed ANGLE archives reused; both executable links passed"
+  },
+  "execution": {
+    "linux-x64": "64 raster pixels and 2 UTF-8 codepoints passed",
+    "linux-arm64": "same raster/UTF-8 test passed under QEMU",
+    "gpu": "not validated; Linux ANGLE probe lacked a display"
+  },
+  "avalonia_native": {
+    "versions": [
+      "11.3.14",
+      "12.1.0"
+    ],
+    "targets": [
+      "osx-x64",
+      "osx-arm64"
+    ],
+    "compilation": "all four passed",
+    "executable_link": "all four passed against macOS SDK system libc++",
+    "execution": "not run"
+  },
+  "not_validated": [
+    "complete Debian Docker image build",
+    "all five releases full nine-RID build",
+    "Windows/macOS runtime",
+    "full NativeAOT application",
+    "GitHub Actions execution",
+    "NuGet publication"
+  ],
+  "environment_note": "Local builds ran on the Linux host with pinned cross tools, not inside Docker. Disk exhaustion required resumptions; it is not recorded as source incompatibility."
+}

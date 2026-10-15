@@ -1,0 +1,72 @@
+{
+  "checked_at_utc": "2026-10-04",
+  "live_plan": [
+    {
+      "ref": "4.150.1-7922.1",
+      "skiasharp_version": "4.153.1",
+      "package_version": "4.153.1-7922.1"
+    }
+  ],
+  "source_lock_checks": {
+    "3.119.2": {
+      "skiasharp_version": "3.119.2",
+      "skiasharp_revision": "2888c737ad016d584c74525e2d35db5097ea8576",
+      "angle_branch": "7922",
+      "angle_revision": "7e08726e32026a0bbabd6ec8a1a90f5ab533ed66",
+      "skia_revision": "927041a58f130e0dd0562ba86cb4170989ad39e9"
+    },
+    "3.119.4": {
+      "skiasharp_version": "3.119.4",
+      "skiasharp_revision": "f568ac94dd768ef9a2f593537cfde2dd0d348ef5",
+      "angle_branch": "7922",
+      "angle_revision": "7e08726e32026a0bbabd6ec8a1a90f5ab533ed66",
+      "skia_revision": "7dbfc07dd33181f84e0958afb7ee805c6c769f0b"
+    },
+    "4.150.2": {
+      "skiasharp_version": "4.150.2",
+      "skiasharp_revision": "fd1fdd5239f826514651a4ada5d7bb3dcec2fb43",
+      "angle_branch": "7922",
+      "angle_revision": "7e08726e32026a0bbabd6ec8a1a90f5ab533ed66",
+      "skia_revision": "b70519562e2d26d3cf56286d3a13ca25152cfae4"
+    },
+    "4.150.3": {
+      "skiasharp_version": "4.150.3",
+      "skiasharp_revision": "f8a404ff3375872d042404a29189ceb8e3001a41",
+      "angle_branch": "7922",
+      "angle_revision": "7e08726e32026a0bbabd6ec8a1a90f5ab533ed66",
+      "skia_revision": "eb86e4b3ee034085b62d3980b3d94629862441e6"
+    },
+    "4.150.5": {
+      "skiasharp_version": "4.150.5",
+      "skiasharp_revision": "16f82682f756217654eb1a152cdb639e358b8976",
+      "angle_branch": "7922",
+      "angle_revision": "7e08726e32026a0bbabd6ec8a1a90f5ab533ed66",
+      "skia_revision": "579fa81eeed6906732e27b7d95149538584dd20b"
+    },
+    "4.153.1": {
+      "skiasharp_version": "4.153.1",
+      "skiasharp_revision": "4783f51448f9b070dda4f87b83e941c9599e466e",
+      "angle_branch": "7922",
+      "angle_revision": "7e08726e32026a0bbabd6ec8a1a90f5ab533ed66",
+      "skia_revision": "45afab4f1f0921f3feb97f58cf89b136fffa85e6"
+    }
+  },
+  "checks_passed": [
+    "actionlint",
+    "python-json-yaml-bash-syntax",
+    "numeric-stable-version-selection",
+    "skip-published-version",
+    "freeze-skia2",
+    "real-nuget-discovery",
+    "immutable-tag-and-skia-gitlink-resolution",
+    "generated-package-version-and-exact-dependency"
+  ],
+  "not_run": [
+    "full-build-of-the-six-new-versions",
+    "github-actions",
+    "docker-cold-build",
+    "windows-macos-runtime",
+    "dotnet-pack",
+    "nuget-publish"
+  ]
+}

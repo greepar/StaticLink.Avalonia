@@ -30,7 +30,9 @@ static void StaticLinkAvaloniaPreinitializeAppKitFonts(void)
 }
 OBJC
 
-clang -arch "$ARCH" \
+compiler=("${CC:-clang}")
+if [[ "${STATICLINK_ZIG_CROSS:-0}" != 1 ]]; then compiler+=(-arch "$ARCH"); fi
+"${compiler[@]}" \
   -mmacosx-version-min=12.0 \
   -fobjc-arc \
   -c "$src" \
