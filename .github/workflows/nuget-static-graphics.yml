@@ -7,6 +7,10 @@ on:
         description: Official stable Avalonia 11/12 version; empty selects the historical SkiaSharp profile
         type: string
         default: ''
+      toolchain_image:
+        description: Immutable Zig toolchain image used by local and CI validation
+        type: string
+        default: 'ghcr.io/greepar/staticlink.avalonia-zig@sha256:e54b069aed7c880ea09e416886f8759df75eb283ca923dcfa37321fa3e6e9bfe'
       windows_retest_rids:
         description: Windows RID JSON list for artifact-based retests
         type: string
@@ -66,6 +70,8 @@ jobs:
       contents: read
       packages: write
     uses: ./.github/workflows/zig-toolchain-image.yml
+    with:
+      image: ${{ inputs.toolchain_image || 'ghcr.io/greepar/staticlink.avalonia-zig@sha256:e54b069aed7c880ea09e416886f8759df75eb283ca923dcfa37321fa3e6e9bfe' }}
 
   preflight:
     if: ${{ inputs.environment_only != true && inputs.windows_retest_run_id == '' }}
