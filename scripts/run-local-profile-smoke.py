@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Publish and execute the existing Avalonia smoke app against local stable packages."""
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -78,7 +79,15 @@ def main():
         raise SystemExit('Dynamic native library remains in the AOT candidate')
     app = publish / 'AvaloniaStaticLinkSmoke'
     renderers = ['opengl'] if args.rid == 'linux-x64' or args.avalonia_version.startswith('11.') else ['default', 'metal']
-    report = {'profile': profile, 'rid': args.rid, 'runs': [], 'passed': False}
+    consumed = [package]
+    if args.rid.startswith('osx'):
+        consumed.append(feed / ('StaticLink.Avalonia.Native.' + profile['package_version'] + '.nupkg'))
+    hashes = {}
+    for path in consumed + [app]:
+        with path.open('rb') as stream:
+            hashes[path.name] = hashlib.file_digest(stream, 'sha256').hexdigest()
+    report = {'profile': profile, 'rid': args.rid, 'toolchain_image': args.image,
+              'tested_sha256': hashes, 'runs': [], 'passed': False}
     report_path = output / 'runtime-validation.json'
     try:
         for attempt in range(1, args.repeat + 1):
