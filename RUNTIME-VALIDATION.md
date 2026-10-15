@@ -41,6 +41,13 @@ Local verification of these stable candidates is in progress:
 | 11.3.22 | 11.3.22.1 | 2.88.9 | 8.3.1.1 | 2.1.25547.20250602 |
 | 12.1.4 | 12.1.4.1 | 3.119.4 | 8.3.1.3 | 2.1.27548.20260419 |
 
+On 2026-10-15, the Avalonia 11 candidate passed all nine local native build and
+executable-link checks. Its first isolated NuGet candidate also passed two
+NativeAOT application runs each on macOS x64 (OpenGL) and Linux x64 (software).
+The tested local feed was checked against the restored NuGet package bytes.
+These initial results are in `artifacts/early-profile-smoke/11.3.22`; the complete
+pipeline will repack and repeat them with the final consumer targets.
+
 The same package ID has two stable Avalonia version lines. The profiles under
 `build/avalonia-profiles` lock official NuGet package hashes, Avalonia and Skia
 commits, HarfBuzz native and managed binding commits, and the corresponding
