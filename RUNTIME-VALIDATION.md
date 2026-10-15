@@ -23,7 +23,9 @@ of every application feature or every graphics driver.
 The existing daily graphics workflow schedules 02:20 UTC (10:20 Asia/Singapore).
 It is disabled while the official Avalonia 11/12 candidates below are being
 validated. Each candidate must pass the complete runtime gate before publication.
-The nuget.org Trusted Publishing policy must allow nuget-static-graphics.yml.
+The nuget.org Trusted Publishing policies for both `StaticLink.Avalonia` and
+`StaticLink.Avalonia.Native` must allow `nuget-static-graphics.yml`, which builds
+and validates the matching candidates together.
 The historical graphics version format uses a prerelease suffix.
 
 The historical runs above pinned Google ANGLE chromium/7922, commit
@@ -70,3 +72,8 @@ Results are recorded in `artifacts/local-profile-validation/pipeline.json`,
 `runtime-validation.json`. Local smoke results cover macOS x64 and Linux x64.
 The remaining operating-system/architecture runtime combinations must pass their
 CI runners before the daily publishing workflow is enabled again.
+
+The updated daily workflow selects the latest official stable release in each
+of the 11 and 12 version lines and dispatches this same complete verification.
+It runs daily even when the upstream version is unchanged; NuGet skips duplicate
+versions. Manual daily dispatches default to validation without publication.
