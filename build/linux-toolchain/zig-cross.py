@@ -14,7 +14,7 @@ import re
 TARGETS = {
     "linux-x64": "x86_64-linux-gnu.2.36.0", "linux-arm64": "aarch64-linux-gnu.2.36.0",
     "linux-musl-x64": "x86_64-linux-musl", "linux-musl-arm64": "aarch64-linux-musl",
-    "win-x64": "x86_64-windows-gnu", "win-x86": "x86-windows-gnu",
+    "win-x64": "x86_64-windows.win7-gnu", "win-x86": "x86-windows.win7-gnu",
     "win-arm64": "aarch64-windows-gnu", "osx-x64": "x86_64-macos.10.13.0",
     "osx-arm64": "aarch64-macos.11.0.0",
 }
@@ -142,6 +142,13 @@ def compiler(config, tool, incoming):
     if any(flag.startswith("-mavx512") for flag in args):
         args.append("-mevex512")
     if windows:
+        if config.get('windows7_compat'):
+            # Apply after GN's Windows SDK defines. Keep every translation unit
+            # on the same mutex ABI and let libc++ use its upstream Win7 time
+            # fallback. The Zig target also applies this baseline when Zig
+            # builds its own C++ runtime (outside this compiler adapter).
+            args += ['-UWINVER', '-DWINVER=0x0601', '-U_WIN32_WINNT',
+                     '-D_WIN32_WINNT=0x0601', '-DANGLE_WINDOWS_NO_FUTEX=1']
         if "-DCRC32_SIMD_SSE42_PCLMUL" in args:
             args.extend(("-msse4.2", "-mpclmul"))
         if "-DADLER32_SIMD_SSSE3" in args:
@@ -224,6 +231,8 @@ def prepare(args):
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     config = {"zig": zig, "target": TARGETS[args.target], "version": version}
+    if args.target in ('win-x64', 'win-x86'):
+        config['windows7_compat'] = True
     if args.target.startswith("win"):
         include = output / "include"
         # Regeneration is idempotent; remove only the generated SDK case alias.

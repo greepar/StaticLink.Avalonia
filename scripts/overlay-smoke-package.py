@@ -4,12 +4,14 @@ import argparse
 import json
 from pathlib import Path
 import shutil
+import time
 import zipfile
 
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--package', type=Path, required=True)
 p.add_argument('--targets', type=Path, required=True)
 p.add_argument('--native-root', type=Path)
+p.add_argument('--rids', nargs='+', choices=['win-x64', 'win-x86'], default=['win-x64', 'win-x86'])
 a = p.parse_args()
 replacements = {'buildTransitive/StaticLink.Avalonia.targets': a.targets}
 for helper in a.targets.parent.glob('StaticLink.Avalonia.*.ps1'):
@@ -17,7 +19,7 @@ for helper in a.targets.parent.glob('StaticLink.Avalonia.*.ps1'):
 if a.native_root:
     with zipfile.ZipFile(a.package) as package:
         baseline = json.loads(package.read('buildMetadata/sources.lock.json'))
-    for rid in ('win-x64', 'win-x86'):
+    for rid in a.rids:
         native = a.native_root / ('native-static-' + rid) / 'native'
         if not (native / 'zig-build.json').is_file():
             raise SystemExit('Missing replacement native manifest: ' + str(native))
@@ -36,12 +38,16 @@ with zipfile.ZipFile(a.package) as original, zipfile.ZipFile(temporary, 'w', zip
             continue
         # Runtime archive names can differ with the minimum OS target. Do not
         # leave stale normal-profile libraries in a Win7 replacement directory.
-        if a.native_root and name.startswith(('static/win-x64/native/', 'static/win-x86/native/')):
+        if a.native_root and name.startswith(tuple('static/' + rid + '/native/' for rid in a.rids)):
             continue
-        result.writestr(name, replacements[name].read_bytes() if name in replacements else original.read(entry))
+        result.writestr(entry, replacements[name].read_bytes() if name in replacements else original.read(entry))
         names.add(name)
     for name, path in replacements.items():
         if name not in names:
-            result.writestr(name, path.read_bytes())
+            # NuGet interprets ZIP timestamps as UTC. Local wall time in a
+            # UTC+ timezone makes new libraries appear to be in the future,
+            # breaking AotAnywhere's incremental takeover of LinkNative.
+            entry = zipfile.ZipInfo(name, time.gmtime()[:6])
+            result.writestr(entry, path.read_bytes())
 shutil.move(temporary, a.package)
 print('Updated smoke-only package:', a.package)

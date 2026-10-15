@@ -50,7 +50,9 @@ def main():
         command += [str(a.libraries / ('lib' + library + '.a')) for library in libs]
         if windows:
             command += ['-l' + lib for lib in ('dwrite', 'gdi32', 'ole32', 'oleaut32', 'user32', 'uuid',
-                        'windowscodecs', 'dxguid', 'dxgi', 'd3d11', 'd3d9', 'dwmapi', 'shlwapi', 'setupapi', 'version', 'advapi32', 'api-ms-win-core-synch-l1-2-0')]
+                        'windowscodecs', 'dxguid', 'dxgi', 'd3d11', 'd3d9', 'dwmapi', 'shlwapi', 'setupapi', 'version', 'advapi32')]
+            if not config.get('windows7_compat'):
+                command += ['-lapi-ms-win-core-synch-l1-2-0']
         elif mac:
             for framework in ('CoreFoundation', 'CoreGraphics', 'CoreText', 'Foundation', 'AppKit',
                               'Metal', 'QuartzCore', 'OpenGL', 'IOKit', 'IOSurface'):

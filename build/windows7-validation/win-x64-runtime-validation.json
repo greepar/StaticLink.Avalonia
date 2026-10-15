@@ -1,0 +1,18 @@
+{
+  "avalonia": "11.3.22",
+  "staticlink_local_candidate": "11.3.22.1",
+  "rid": "win-x64",
+  "host": "macOS x64",
+  "sdk": "10.0.401",
+  "runtime": "10.0.11",
+  "aotanywhere": "1.1.0",
+  "native_compiler": "Zig 0.14.1 on local Linux container",
+  "native_target": "x86_64-windows.win7-gnu",
+  "linker_zig": "0.17.0-dev.1422+e863bf3be",
+  "os_tested": "Windows 7 SP1 6.1.7601 (local VMware)",
+  "runs": 5,
+  "passed": true,
+  "actual_backend": "OpenGL",
+  "exe_sha256": "1a91d72396d526fdf2ed13baac142ceb80a825966be21aeea28bdc0af1798ea4",
+  "published_to_nuget": false
+}
