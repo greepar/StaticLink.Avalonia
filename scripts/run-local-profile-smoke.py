@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
@@ -19,15 +20,19 @@ def main():
     parser.add_argument('--lima', default='debian')
     parser.add_argument('--image', required=True)
     parser.add_argument('--repeat', type=int, default=2)
+    parser.add_argument('--nuget-source', type=Path, help='An isolated local feed under the repository')
+    parser.add_argument('--output-dir', type=Path, help='An isolated smoke result directory under the repository')
     args = parser.parse_args()
     if args.repeat < 1 or '@sha256:' not in args.image:
         parser.error('An immutable image and positive repeat count are required')
     profile = json.loads((ROOT / 'build/avalonia-profiles' / (args.avalonia_version + '.json')).read_text())
-    feed = ROOT / 'artifacts/avalonia-packages' / args.avalonia_version
+    feed = (args.nuget_source or ROOT / 'artifacts/avalonia-packages' / args.avalonia_version).resolve()
     package = feed / ('StaticLink.Avalonia.' + profile['package_version'] + '.nupkg')
     if not package.is_file():
         raise SystemExit('Pack the complete candidate first')
-    output = ROOT / 'artifacts/local-smoke' / args.avalonia_version / args.rid
+    output = (args.output_dir or ROOT / 'artifacts/local-smoke' / args.avalonia_version / args.rid).resolve()
+    if not feed.is_relative_to(ROOT) or not output.is_relative_to(ROOT):
+        parser.error('The local feed and smoke results must be under the mounted repository')
     project = output / 'src'
     publish = output / 'publish'
     output.mkdir(parents=True, exist_ok=True)
@@ -51,6 +56,12 @@ def main():
                '-p:StripSymbols=true', '-p:PublishDir=' + str(publish) + '/']
     environment = dict(os.environ)
     cache = output / 'nuget-cache'
+    # A candidate can be repacked at the same local version while fixing it.
+    # Force each invocation to restore the selected feed's current packages.
+    for directory in (project / 'bin', project / 'obj', publish,
+                      cache / 'staticlink.avalonia', cache / 'staticlink.avalonia.native'):
+        if directory.exists():
+            shutil.rmtree(directory)
     environment['NUGET_PACKAGES'] = str(cache)
     if args.rid == 'linux-x64':
         command = guest + ['podman', 'run', '--rm', '--platform', 'linux/amd64',

@@ -1,4 +1,8 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup Condition="'$(PublishAot)' == 'true' and ('$(RuntimeIdentifier)' == 'osx-x64' or '$(RuntimeIdentifier)' == 'osx-arm64')">
+        <!-- The bundled Zig C++ runtime is linked for macOS 13. -->
+        <AppleMinOSVersion Condition="'$(AppleMinOSVersion)' == ''">13.0</AppleMinOSVersion>
+    </PropertyGroup>
     <PropertyGroup>
         <_StaticLinkAvaloniaRid Condition="'$(RuntimeIdentifier)' == 'win-x64'">win-x64</_StaticLinkAvaloniaRid>
         <_StaticLinkAvaloniaRid Condition="'$(RuntimeIdentifier)' == 'win-x86'">win-x86</_StaticLinkAvaloniaRid>
