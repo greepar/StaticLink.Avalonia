@@ -34,7 +34,7 @@ version distributed by Avalonia.Angle.Windows.Natives.
 
 ## Official Avalonia package profiles
 
-The first complete local pipeline and two Actions validations have passed:
+Two complete local pipelines and two Actions validations have passed:
 
 | Avalonia | StaticLink.Avalonia | SkiaSharp | HarfBuzzSharp | Official ANGLE package |
 | --- | --- | --- | --- | --- |
@@ -49,7 +49,10 @@ The complete local pipeline then passed all build, pack, and runtime stages.
 Avalonia 12 ran twice each on macOS x64 default/Metal (all four runs actually used
 Metal) and Linux x64 (software). The ten local application runs all rendered and
 exited normally. Results from the first complete pipeline are preserved under
-`artifacts/validation-repeats/1`. A second complete pipeline is in progress.
+`artifacts/validation-repeats/1`. The second complete pipeline also passed,
+including fresh candidate restores, repacking, all four Native rebuilds, and
+another ten successful application runs. Its reports are under
+`artifacts/validation-repeats/2` (20 successful local application runs in total).
 
 The first official-profile Actions runs also passed all nine native builds and
 all nine application runtime jobs for both profiles:
