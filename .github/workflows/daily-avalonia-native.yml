@@ -1,0 +1,93 @@
+name: daily-avalonia-native
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+    inputs:
+      force_build:
+        description: Rebuild even if matching successful Actions artifacts exist
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: daily-avalonia-native
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        major: [11, 12]
+    steps:
+      - name: Check latest stable Avalonia and dispatch Native build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AVALONIA_MAJOR: ${{ matrix.major }}
+          FORCE_BUILD: ${{ inputs.force_build }}
+          NATIVE_BRANCH: avalonia-native
+          PACKAGE_REVISION: '2'
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+
+          repository = os.environ['GITHUB_REPOSITORY']
+          branch = os.environ['NATIVE_BRANCH']
+          major = int(os.environ['AVALONIA_MAJOR'])
+
+          def api(endpoint):
+              return json.loads(subprocess.check_output(['gh', 'api', endpoint], text=True))
+
+          def summary(message):
+              print(message, flush=True)
+              with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as output:
+                  output.write(message + '\n')
+
+          upstream = json.loads(subprocess.check_output([
+              'curl', '--fail', '--silent', '--show-error', '--location', '--retry', '3',
+              'https://api.nuget.org/v3-flatcontainer/avalonia/index.json',
+          ], text=True))
+          candidates = [version for version in upstream['versions']
+                        if re.fullmatch(r'\d+\.\d+\.\d+', version)
+                        and int(version.split('.')[0]) == major]
+          if not candidates:
+              raise SystemExit(f'No stable Avalonia {major} version found')
+          version = max(candidates, key=lambda value: tuple(map(int, value.split('.'))))
+          package_version = version + '.' + os.environ['PACKAGE_REVISION']
+          artifact_name = 'staticlink-avalonia-native-' + package_version
+          head_sha = api(f'repos/{repository}/branches/{branch}')['commit']['sha']
+          if os.environ['FORCE_BUILD'] != 'true':
+              already_validated = False
+              runs = api(f'repos/{repository}/actions/workflows/nuget-avalonia-native.yml/runs'
+                         f'?branch={branch}&status=success&per_page=100')['workflow_runs']
+              for run in runs:
+                  if run['head_sha'] != head_sha or run['conclusion'] != 'success':
+                      continue
+                  artifacts = api(f"repos/{repository}/actions/runs/{run['id']}/artifacts?per_page=100")['artifacts']
+                  if any(artifact['name'] == artifact_name and not artifact['expired']
+                         for artifact in artifacts):
+                      summary(f"Already validated {package_version}: {run['html_url']}")
+                      already_validated = True
+                      break
+              if already_validated:
+                  raise SystemExit(0)
+
+          payload = json.dumps({'ref': branch, 'inputs': {
+              'avalonia_version': version, 'force_build': True, 'publish_to_nuget': False,
+          }})
+          subprocess.run([
+              'gh', 'api', '--method', 'POST',
+              f'repos/{repository}/actions/workflows/nuget-avalonia-native.yml/dispatches',
+              '--input', '-',
+          ], input=payload, text=True, check=True)
+          summary(f'Dispatched {package_version} on {branch}; Actions artifacts only, no NuGet publication.')
+          PY

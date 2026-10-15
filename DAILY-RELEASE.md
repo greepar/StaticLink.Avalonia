@@ -1,11 +1,24 @@
-# Daily graphics releases
+# Daily official Avalonia releases
 
-The dispatcher on main checks the latest stable SkiaSharp 3 and 4 every day.
-Existing upstream/ANGLE versions are skipped; force_build can rebuild them.
-NuGet publication requires all nine Zig builds, package checks, all nine Avalonia
-NativeAOT applications to render and exit successfully, and the macOS Metal test.
-A failed, cancelled, or skipped runtime check blocks publication. Windows-only
-retests and environment-only runs cannot authorize publication.
+The `daily-native-release.yml` workflow selects the latest official stable
+Avalonia release in each of the 11 and 12 version lines. Both use the same
+`StaticLink.Avalonia` package ID, with formal versions `<AvaloniaVersion>.1`.
+It dispatches `nuget-static-graphics.yml` on the current default branch.
 
-NuGet Trusted Publishing must allow greepar/StaticLink.Avalonia and the workflow
-nuget-static-graphics.yml for the StaticLink.Avalonia package.
+The workflow is currently disabled while the first candidates are validated.
+After validation it runs at 02:20 UTC (10:20 Asia/Singapore). Each daily run
+validates both lines, even if the upstream version is unchanged. NuGet skips
+duplicate versions. Manual dispatch defaults to validation without publication.
+
+Publication requires all nine Zig target builds, matching Avalonia.Native
+archives, package provenance and hash checks, and a real Avalonia NativeAOT
+application rendering and exiting normally on every target. Avalonia 12 also
+requires Metal. A failed, cancelled, or skipped required test blocks publishing.
+Environment-only and Windows-only retests cannot publish.
+
+Trusted Publishing must allow `greepar/StaticLink.Avalonia` and
+`nuget-static-graphics.yml` for both the `StaticLink.Avalonia` and
+`StaticLink.Avalonia.Native` packages, which are validated together.
+
+The separate Native artifact-only schedule is retained for its historical
+branch; it does not publish NuGet packages.
