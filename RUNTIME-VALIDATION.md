@@ -34,7 +34,7 @@ version distributed by Avalonia.Angle.Windows.Natives.
 
 ## Official Avalonia package profiles
 
-Local verification of these stable candidates is in progress:
+The first complete local pipeline and two Actions validations have passed:
 
 | Avalonia | StaticLink.Avalonia | SkiaSharp | HarfBuzzSharp | Official ANGLE package |
 | --- | --- | --- | --- | --- |
@@ -45,8 +45,11 @@ On 2026-10-15, both profiles passed all nine local native build and executable-l
 checks (18/18). The Avalonia 11 graphics candidate with its pinned Native
 `11.3.22.2` dependency also passed two NativeAOT application runs each on macOS
 x64 (OpenGL) and Linux x64 (software), using only the main package reference.
-These isolated results are in `artifacts/early-profile-smoke/11.3.22`; the complete
-pipeline is repeating them and validating Avalonia 12.
+The complete local pipeline then passed all build, pack, and runtime stages.
+Avalonia 12 ran twice each on macOS x64 default/Metal (all four runs actually used
+Metal) and Linux x64 (software). The ten local application runs all rendered and
+exited normally. Results from the first complete pipeline are preserved under
+`artifacts/validation-repeats/1`. A second complete pipeline is in progress.
 
 The first official-profile Actions runs also passed all nine native builds and
 all nine application runtime jobs for both profiles:
@@ -54,8 +57,13 @@ all nine application runtime jobs for both profiles:
 - Avalonia 11.3.22: [38658792410](https://github.com/greepar/StaticLink.Avalonia/actions/runs/38658792410).
 - Avalonia 12.1.4: [38658792589](https://github.com/greepar/StaticLink.Avalonia/actions/runs/38658792589), including real Metal.
 
-Those first runs tested local Native candidates; another Actions run is checking
-the final dependency revisions before publication. Publication was not requested.
+The final dependency revisions passed another complete Actions validation:
+
+- Avalonia 11.3.22 with Native 11.3.22.2: [38662866914](https://github.com/greepar/StaticLink.Avalonia/actions/runs/38662866914).
+- Avalonia 12.1.4 with Native 12.1.4.1: [38662866969](https://github.com/greepar/StaticLink.Avalonia/actions/runs/38662866969), including real Metal.
+
+Publication was not requested in any of these runs. The daily publishing workflow
+remains disabled pending confirmation of the nuget.org Trusted Publishing scope.
 
 The same package ID has two stable Avalonia version lines. The profiles under
 `build/avalonia-profiles` lock official NuGet package hashes, Avalonia and Skia

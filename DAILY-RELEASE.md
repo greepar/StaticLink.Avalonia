@@ -19,6 +19,9 @@ Environment-only and Windows-only retests cannot publish.
 Trusted Publishing must allow `greepar/StaticLink.Avalonia` and
 `nuget-static-graphics.yml` for both the `StaticLink.Avalonia` and
 `StaticLink.Avalonia.Native` packages, which are validated together.
+One policy owned by the account that owns both packages can cover them with the
+`StaticLink.Avalonia*` package scope. No GitHub environment is used, so leave the
+policy's environment field empty.
 
 The separate Native artifact-only schedule is retained for its historical
 branch; it does not publish NuGet packages.
