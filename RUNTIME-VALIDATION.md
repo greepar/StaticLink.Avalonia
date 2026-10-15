@@ -41,12 +41,21 @@ Local verification of these stable candidates is in progress:
 | 11.3.22 | 11.3.22.1 | 2.88.9 | 8.3.1.1 | 2.1.25547.20250602 |
 | 12.1.4 | 12.1.4.1 | 3.119.4 | 8.3.1.3 | 2.1.27548.20260419 |
 
-On 2026-10-15, the Avalonia 11 candidate passed all nine local native build and
-executable-link checks. Its first isolated NuGet candidate also passed two
-NativeAOT application runs each on macOS x64 (OpenGL) and Linux x64 (software).
-The tested local feed was checked against the restored NuGet package bytes.
-These initial results are in `artifacts/early-profile-smoke/11.3.22`; the complete
-pipeline will repack and repeat them with the final consumer targets.
+On 2026-10-15, both profiles passed all nine local native build and executable-link
+checks (18/18). The Avalonia 11 graphics candidate with its pinned Native
+`11.3.22.2` dependency also passed two NativeAOT application runs each on macOS
+x64 (OpenGL) and Linux x64 (software), using only the main package reference.
+These isolated results are in `artifacts/early-profile-smoke/11.3.22`; the complete
+pipeline is repeating them and validating Avalonia 12.
+
+The first official-profile Actions runs also passed all nine native builds and
+all nine application runtime jobs for both profiles:
+
+- Avalonia 11.3.22: [38658792410](https://github.com/greepar/StaticLink.Avalonia/actions/runs/38658792410).
+- Avalonia 12.1.4: [38658792589](https://github.com/greepar/StaticLink.Avalonia/actions/runs/38658792589), including real Metal.
+
+Those first runs tested local Native candidates; another Actions run is checking
+the final dependency revisions before publication. Publication was not requested.
 
 The same package ID has two stable Avalonia version lines. The profiles under
 `build/avalonia-profiles` lock official NuGet package hashes, Avalonia and Skia
