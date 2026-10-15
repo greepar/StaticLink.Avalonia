@@ -2,9 +2,14 @@
 """Generate cdecl -> stdcall adapters using the pinned managed P/Invoke ABI."""
 import argparse,re,subprocess,json
 from pathlib import Path
-p=argparse.ArgumentParser();p.add_argument('--source',type=Path,required=True);p.add_argument('--toolchain',type=Path,required=True);p.add_argument('--libraries',type=Path,required=True);a=p.parse_args()
-files=[a.source/'binding/SkiaSharp/SkiaApi.generated.cs',a.source/'binding/HarfBuzzSharp/HarfBuzzApi.generated.cs']
-text='\n'.join(x.read_text() if x.is_file() else subprocess.check_output(['git','-C',str(a.source),'show','HEAD:'+str(x.relative_to(a.source))],text=True) for x in files)
+p=argparse.ArgumentParser();p.add_argument('--source',type=Path,required=True);p.add_argument('--toolchain',type=Path,required=True);p.add_argument('--libraries',type=Path,required=True);p.add_argument('--harfbuzz-revision',default='HEAD');a=p.parse_args()
+def binding(component, revision):
+ paths = subprocess.check_output(['git', '-C', str(a.source), 'ls-tree', '-r', '--name-only', revision], text=True).splitlines()
+ matches = [path for path in paths if path.startswith('binding/') and Path(path).name == component + 'Api.generated.cs']
+ if len(matches) != 1:
+  raise SystemExit('Expected exactly one pinned ' + component + ' generated binding at ' + revision + ': ' + str(matches))
+ return subprocess.check_output(['git', '-C', str(a.source), 'show', revision + ':' + matches[0]], text=True)
+text = binding('Skia', 'HEAD') + '\n' + binding('HarfBuzz', a.harfbuzz_revision)
 structs={}
 # Generated structs use public fields; omit properties and methods.
 for match in re.finditer(r'\bstruct\s+(\w+)\s*\{',text):
@@ -65,5 +70,5 @@ for name,(symbol,count) in sorted(thunks.items()):
 path=a.libraries/'skia_x86_stdcall_thunks.s';path.write_text('\n'.join(assembly)+'\n');obj=path.with_suffix('.o')
 subprocess.run([str(a.toolchain/'cc'),'-c',str(path),'-o',str(obj)],check=True)
 subprocess.run([str(a.toolchain/'ar'),'rcs',str(a.libraries/'skia_x86_stdcall_thunks.lib'),str(obj)],check=True)
-(a.libraries/'x86-thunks.json').write_text(json.dumps({'count':len(thunks),'layouts':sizes,'thunks':thunks},indent=2)+'\n')
+(a.libraries/'x86-thunks.json').write_text(json.dumps({'count':len(thunks),'harfbuzz_binding_revision':a.harfbuzz_revision,'layouts':sizes,'thunks':thunks},indent=2)+'\n')
 print('Generated',len(thunks),'x86 stdcall thunks')

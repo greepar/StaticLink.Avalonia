@@ -144,3 +144,37 @@ if __name__ == '__main__':
     if match and int(match[1]) >= 19:
         repair_skcms(source)
     configure(source, out, desired, gn, os.environ.copy())
+
+
+def repair_png_sdk(source):
+    path = source / 'third_party/externals/libpng/pngpriv.h'
+    if not path.is_file():
+        return 'absent'
+    text = path.read_text()
+    original = 'defined(THINK_C) || defined(__SC__) || defined(TARGET_OS_MAC)'
+    replacement = 'defined(THINK_C) || defined(__SC__) || (defined(TARGET_OS_MAC) && !defined(__APPLE__))'
+    if replacement in text or '#      include <fp.h>' not in text:
+        return 'already-compatible'
+    if text.count(original) != 1:
+        raise RuntimeError('Inspect upstream libpng classic Mac floating point header selection')
+    # Modern Apple SDKs define TARGET_OS_MAC but supply ISO math.h, not the
+    # classic Mac OS fp.h. Preserve the old branch for its original compilers.
+    path.write_text(text.replace(original, replacement))
+    return 'repaired'
+
+
+def repair_zlib_sdk(source):
+    path = source / 'third_party/externals/zlib/zutil.h'
+    if not path.is_file():
+        return 'absent'
+    text = path.read_text()
+    original = '#if defined(MACOS) || defined(TARGET_OS_MAC)'
+    replacement = '#if (defined(MACOS) || defined(TARGET_OS_MAC)) && !defined(__APPLE__)'
+    if replacement in text or 'No fdopen()' not in text:
+        return 'already-compatible'
+    if text.count(original) != 1:
+        raise RuntimeError('Inspect upstream zlib Classic Mac fdopen workaround')
+    # Modern Darwin has fdopen; TargetConditionals.h must not select the
+    # Classic Mac branch that replaces stdio's declaration with NULL.
+    path.write_text(text.replace(original, replacement))
+    return 'repaired'

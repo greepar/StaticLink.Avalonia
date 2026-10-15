@@ -20,11 +20,53 @@ macOS tests can use software rendering; only the Metal test requires Metal.
 This establishes startup/rendering for these test combinations, not coverage
 of every application feature or every graphics driver.
 
-Daily graphics releases are enabled on main at 02:20 UTC (10:20 Asia/Singapore).
-Each new candidate must pass the same runtime gate before publication. The
-nuget.org Trusted Publishing policy must allow nuget-static-graphics.yml.
-The graphics package version format currently retains its prerelease suffix.
+The existing daily graphics workflow schedules 02:20 UTC (10:20 Asia/Singapore).
+It is disabled while the official Avalonia 11/12 candidates below are being
+validated. Each candidate must pass the complete runtime gate before publication.
+The nuget.org Trusted Publishing policy must allow nuget-static-graphics.yml.
+The historical graphics version format uses a prerelease suffix.
 
-ANGLE sources remain pinned to Google ANGLE chromium/7922, commit
+The historical runs above pinned Google ANGLE chromium/7922, commit
 7e08726e32026a0bbabd6ec8a1a90f5ab533ed66. This is independent of the ANGLE
 version distributed by Avalonia.Angle.Windows.Natives.
+
+## Official Avalonia package profiles
+
+Local verification of these stable candidates is in progress:
+
+| Avalonia | StaticLink.Avalonia | SkiaSharp | HarfBuzzSharp | Official ANGLE package |
+| --- | --- | --- | --- | --- |
+| 11.3.22 | 11.3.22.1 | 2.88.9 | 8.3.1.1 | 2.1.25547.20250602 |
+| 12.1.4 | 12.1.4.1 | 3.119.4 | 8.3.1.3 | 2.1.27548.20260419 |
+
+The same package ID has two stable Avalonia version lines. The profiles under
+`build/avalonia-profiles` lock official NuGet package hashes, Avalonia and Skia
+commits, HarfBuzz native and managed binding commits, and the corresponding
+AvaloniaUI/angle commit. Windows x86 adapters use the locked managed bindings.
+
+On a macOS x64 host with a running Lima Debian VM, Podman in the VM, .NET, and
+PowerShell, run the complete local pipeline:
+
+```sh
+caffeinate -i python3 scripts/validate-local-avalonia-profiles.py \
+  --lima debian \
+  --image ghcr.io/greepar/staticlink.avalonia-zig@sha256:e54b069aed7c880ea09e416886f8759df75eb283ca923dcfa37321fa3e6e9bfe
+```
+
+The repository must be mounted at the same absolute path inside Lima. Native
+source checkouts use the VM's Linux filesystem, with `--work-dir` defaulting to
+`/var/tmp/staticlink-avalonia-work`. The image digest is required.
+`global.json` selects a stable .NET 10 SDK and excludes installed preview SDKs.
+
+The pipeline builds and links all nine native RIDs for both profiles, builds
+Avalonia.Native for both macOS architectures, verifies source provenance and
+archive hashes, and packs stable candidates into local feeds. It then publishes
+the existing NativeAOT smoke app and runs it twice on macOS x64 and Linux x64;
+Avalonia 12 additionally requires the real Metal backend. Every failed stage
+stops the pipeline. The pipeline does not upload packages.
+
+Results are recorded in `artifacts/local-profile-validation/pipeline.json`,
+`artifacts/avalonia-validation/matrix.json`, and each smoke app's
+`runtime-validation.json`. Local smoke results cover macOS x64 and Linux x64.
+The remaining operating-system/architecture runtime combinations must pass their
+CI runners before the daily publishing workflow is enabled again.

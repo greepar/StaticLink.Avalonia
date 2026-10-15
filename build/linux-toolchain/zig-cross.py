@@ -91,11 +91,21 @@ def compiler(config, tool, incoming):
         "/Gy": "-ffunction-sections", "/Gw": "-fdata-sections",
         "/Oy-": "-fno-omit-frame-pointer", "/guard:cf": "-mguard=cf",
         "/W3": "-Wall",
+        "/Zc:sizedDealloc-": "-fno-sized-deallocation",
+        "/Zc:sizedDealloc": "-fsized-deallocation",
+        "-march=skylake-avx512": "-mcpu=skylake_avx512+evex512",
         "-march=x86-64-v3": "-mcpu=x86_64_v3", "-march=x86-64-v4": "-mcpu=x86_64_v4+evex512",
-        "-march=armv8-a+crc+crypto": "-mcpu=generic+crc+aes+sha2",
+        "-march=armv8-a+aes+crc": "-mcpu=apple_m1+crc" if "macos" in target else "-mcpu=generic+aes+crc",
+        "-march=armv8-a+crc": "-mcpu=apple_m1+crc" if "macos" in target else "-mcpu=generic+crc",
+        "-march=armv8-a+crc+crypto": "-mcpu=apple_m1+crc" if "macos" in target else "-mcpu=generic+crc+aes+sha2",
     }
     iterator = iter(incoming)
     for flag in iterator:
+        # Chromium disables newer constant ObjC number/array/dictionary literals.
+        # Zig 0.14.1 embeds Clang 19, which does not implement that optimization
+        # and already emits the runtime messages requested by the negative flag.
+        if flag == "-fno-objc-constant-literals":
+            continue
         if flag in ("-Wl,--fatal-warnings", "-Wl,--disable-new-dtags"):
             continue
         if flag in ("-o", "-MF", "-MT", "-MQ", "-I", "-isystem", "-isysroot", "-F", "-idirafter", "-include"):

@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+"""Pack complete locally validated archives for an exact official Avalonia profile."""
+import argparse
+import hashlib
+import json
+from pathlib import Path
+import subprocess
+import zipfile
+
+ROOT = Path(__file__).resolve().parents[1]
+RIDS = ['linux-x64', 'linux-arm64', 'linux-musl-x64', 'linux-musl-arm64',
+        'win-x64', 'win-x86', 'win-arm64', 'osx-x64', 'osx-arm64']
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--avalonia-version', required=True)
+    parser.add_argument('--validation-dir', type=Path, default=ROOT / 'artifacts/avalonia-validation')
+    args = parser.parse_args()
+    profile_path = ROOT / 'build/avalonia-profiles' / (args.avalonia_version + '.json')
+    profile = json.loads(profile_path.read_text())
+    report = json.loads((args.validation_dir / 'matrix.json').read_text())
+    if report.get('environment_exit_code') != 0:
+        raise SystemExit('The toolchain environment gate must pass before packing')
+    recipe = None
+    for rid in RIDS:
+        key = args.avalonia_version + '/' + rid
+        if report['builds'].get(key, {}).get('status') != 'passed':
+            raise SystemExit('Cannot pack an incomplete matrix: ' + key)
+        manifest = json.loads((args.validation_dir / args.avalonia_version / rid / 'native/zig-build.json').read_text())
+        if manifest['sources'] != profile:
+            raise SystemExit('Archive source provenance does not match the candidate: ' + rid)
+        if recipe is None:
+            recipe = manifest['recipe_sha256']
+        if manifest['recipe_sha256'] != recipe:
+            raise SystemExit('Target archives were built from different compiler recipes')
+        for relative, expected in recipe.items():
+            if hashlib.sha256((ROOT / 'build/linux-toolchain' / relative).read_bytes()).hexdigest() != expected:
+                raise SystemExit('Compiler recipe changed after the target was validated: ' + relative)
+        windows_names = {'libskia.a': 'skia.lib', 'libSkiaSharp.a': 'SkiaSharp.lib',
+                         'libHarfBuzzSharp.a': 'libHarfBuzzSharp.lib', 'libANGLE.a': 'libANGLE_static.lib',
+                         'libGLESv2.a': 'libGLESv2_static.lib', 'libEGL.a': 'libEGL_static.lib'}
+        unix_names = dict(windows_names, **{'libANGLE.a': 'libANGLE_static.a',
+                                          'libGLESv2.a': 'libGLESv2_static.a', 'libEGL.a': 'libEGL_static.a'})
+        unix_names.update({name: name for name in ('libskia.a', 'libSkiaSharp.a', 'libHarfBuzzSharp.a')})
+        for source, expected in manifest['archives'].items():
+            filename = (windows_names if rid.startswith('win') else unix_names).get(source, source)
+            path = args.validation_dir / args.avalonia_version / rid / 'native' / filename
+            if hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+                raise SystemExit('Candidate archive was modified after validation: ' + str(path))
+    native_root = ROOT / 'artifacts/avalonia-native' / args.avalonia_version
+    for rid in ('osx-x64', 'osx-arm64'):
+        native = native_root / rid / 'native'
+        manifest = json.loads((native / 'avalonia-native-build.json').read_text())
+        if manifest['source_commit'] != profile['avalonia_revision']:
+            raise SystemExit('Avalonia.Native source does not match the official release')
+        for filename in ('libAvaloniaNative.a', 'macos_font_preinit.o'):
+            if not (native / filename).is_file():
+                raise SystemExit('Missing native archive: ' + filename)
+    feed = ROOT / 'artifacts/avalonia-packages' / args.avalonia_version
+    feed.mkdir(parents=True, exist_ok=True)
+    subprocess.run(['dotnet', 'pack', str(ROOT / 'NuGet/AvaloniaNative/StaticLink.Avalonia.Native.csproj'),
+                    '-c', 'Release', '-o', str(feed), '-p:PackageVersion=' + profile['package_version'],
+                    '-p:StaticLinkAvaloniaNativeArchivesRoot=' + str(native_root)], check=True)
+    subprocess.run(['dotnet', 'pack', str(ROOT / 'NuGet/StaticGraphics/StaticLink.Avalonia.csproj'),
+                    '-c', 'Release', '-o', str(feed), '-p:PackageVersion=' + profile['package_version'],
+                    '-p:StaticLinkSkiaSharpVersion=[' + profile['skiasharp_version'] + ']',
+                    '-p:StaticLinkHarfBuzzSharpVersion=[' + profile['harfbuzzsharp_version'] + ']',
+                    '-p:StaticLinkAvaloniaVersion=[' + profile['avalonia_version'] + ']',
+                    '-p:StaticLinkNativeArchivesRoot=' + str((args.validation_dir / args.avalonia_version).resolve()),
+                    '-p:StaticLinkSourceLockFile=' + str(profile_path)], check=True)
+    package = feed / ('StaticLink.Avalonia.' + profile['package_version'] + '.nupkg')
+    with zipfile.ZipFile(package) as archive:
+        names = set(archive.namelist())
+        if any('\\' in name for name in names):
+            raise SystemExit('NuGet contains non-portable Windows paths')
+        for rid in RIDS:
+            if f'static/{rid}/native/zig-build.json' not in names:
+                raise SystemExit('Packed candidate is missing target ' + rid)
+    print('Complete stable candidate packed:', package)
+
+
+if __name__ == '__main__':
+    main()

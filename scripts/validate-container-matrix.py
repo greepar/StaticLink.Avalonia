@@ -16,6 +16,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--image', required=True, help='Same ghcr.io/...@sha256:... reference as CI')
     parser.add_argument('--versions', nargs='+', default=['3.119.4', '4.153.1', '3.119.1', '3.119.2', '4.152.3', '4.153.0'])
+    parser.add_argument('--profiles', nargs='+', help='Official Avalonia versions in build/avalonia-profiles')
+    parser.add_argument('--engine', choices=['docker', 'podman'], default='docker')
+    parser.add_argument('--work-dir', type=pathlib.Path, help='Bind a persistent work directory instead of an engine volume')
+    parser.add_argument('--cache-size', default='20G', help='Maximum compiler cache size')
+    parser.add_argument('--output-dir', type=pathlib.Path, default=ROOT / 'artifacts/container-validation')
     parser.add_argument('--rids', nargs='+', choices=RIDS, default=RIDS)
     parser.add_argument('--jobs', type=int, default=4)
     parser.add_argument('--proxy', default='', help='Optional host network proxy URL, e.g. http://host.docker.internal:7897')
@@ -23,18 +28,24 @@ def main():
     args = parser.parse_args()
     if '@sha256:' not in args.image or args.jobs < 1:
         parser.error('An immutable image digest and positive job count are required')
+    if args.profiles:
+        args.versions = args.profiles
+    profiles = {}
     for version in args.versions:
-        profile = ROOT / 'build/linux-toolchain/versions' / (version + '.json')
-        if not profile.is_file() or json.loads(profile.read_text())['skiasharp_version'] != version:
+        profile = ROOT / ('build/avalonia-profiles' if args.profiles else 'build/linux-toolchain/versions') / (version + '.json')
+        if not profile.is_file() or json.loads(profile.read_text())['avalonia_version' if args.profiles else 'skiasharp_version'] != version:
             parser.error('Missing or inconsistent version lock: ' + version)
-    output = ROOT / 'artifacts/container-validation'
+        profiles[version] = '/src/' + str(profile.relative_to(ROOT))
+    output = args.output_dir.resolve()
+    if not output.is_relative_to(ROOT):
+        parser.error('Output must be under the mounted repository')
     output.mkdir(parents=True, exist_ok=True)
     report_path = output / 'matrix.json'
     report = json.loads(report_path.read_text()) if report_path.exists() else {}
     if report and report['image'] != args.image:
         parser.error('Existing report belongs to another image; move it before changing the image')
     recipe = hashlib.sha256()
-    inputs = list((ROOT / 'build/linux-toolchain').rglob('*')) + list((ROOT / 'scripts').glob('*.sh'))
+    inputs = list((ROOT / 'build/linux-toolchain').rglob('*')) + list((ROOT / 'build/avalonia-profiles').glob('*.json')) + list((ROOT / 'scripts').glob('*.sh'))
     for path in sorted(inputs):
         if path.is_file() and path.suffix in ('.py', '.sh', '.in', '.patch', '.json', '.c'):
             recipe.update(str(path.relative_to(ROOT)).encode())
@@ -53,12 +64,18 @@ def main():
     common_git = pathlib.Path(subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', '--git-common-dir'], text=True).strip())
     if not common_git.is_absolute():
         common_git = (ROOT / common_git).resolve()
-    docker = ['docker', 'run', '--rm', '--platform', 'linux/amd64',
-              '-v', str(ROOT) + ':/src', '-v', str(common_git) + ':' + str(common_git) + ':ro', '-v', args.volume + ':/src/External/NativeStatic/.work',
+    work_mount = args.volume
+    if args.work_dir:
+        args.work_dir = args.work_dir.resolve()
+        args.work_dir.mkdir(parents=True, exist_ok=True)
+        work_mount = str(args.work_dir)
+    docker = [args.engine, 'run', '--rm', '--platform', 'linux/amd64',
+              '-v', str(ROOT) + ':/src', '-v', str(common_git) + ':' + str(common_git) + ':ro', '-v', work_mount + ':/src/External/NativeStatic/.work',
               '-w', '/src', '-e', 'DEPOT_TOOLS_METRICS=0', '-e', 'HOME=/src/External/NativeStatic/.work/home',
-              '-e', 'CCACHE_DIR=/src/External/NativeStatic/.work/ccache', '-e', 'CCACHE_MAXSIZE=20G',
+              '-e', 'CCACHE_DIR=/src/External/NativeStatic/.work/ccache', '-e', 'CCACHE_MAXSIZE=' + args.cache_size,
               '-e', 'CCACHE_BASEDIR=/src/External/NativeStatic/.work', '-e', 'CCACHE_COMPILERCHECK=content',
               '-e', 'ZIG_GLOBAL_CACHE_DIR=/src/External/NativeStatic/.work/zig-global',
+              '-e', 'GIT_CONFIG_COUNT=1', '-e', 'GIT_CONFIG_KEY_0=safe.directory', '-e', 'GIT_CONFIG_VALUE_0=*',
               '--entrypoint', 'bash', args.image, '-c']
     if args.proxy:
         docker[2:2] = ['-e', 'HTTP_PROXY=' + args.proxy, '-e', 'HTTPS_PROXY=' + args.proxy, '-e', 'http_proxy=' + args.proxy, '-e', 'https_proxy=' + args.proxy]
@@ -71,8 +88,8 @@ def main():
     for version in args.versions:
         print('Preparing locked sources:', version, flush=True)
         with (output / (version + '-sources.log')).open('a') as log:
-            command = 'export SOURCE_LOCK="/src/build/linux-toolchain/versions/$1.json"; source scripts/prepare-cross-sources.sh'
-            code = subprocess.call(docker + [command, 'prepare', version], stdout=log, stderr=subprocess.STDOUT)
+            command = 'set -euo pipefail; export SOURCE_LOCK="$1"; source scripts/prepare-cross-sources.sh'
+            code = subprocess.call(docker + [command, 'prepare', profiles[version]], stdout=log, stderr=subprocess.STDOUT)
         report['builds'][version + '/sources'] = {'exit_code': code, 'status': 'passed' if code == 0 else 'failed'}
         save()
         if code:
@@ -86,14 +103,15 @@ def main():
             report['builds'][key] = {'status': 'running'}
             save()
             command = '''set -euo pipefail
-export SOURCE_LOCK="/src/build/linux-toolchain/versions/$1.json"
-work="/src/External/NativeStatic/.work/zig-sources/$1-$(sha256sum "$SOURCE_LOCK" | cut -c1-16)"
-output="/src/artifacts/container-validation/$1/$2"
+export SOURCE_LOCK="$4"
+skia_version="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["skiasharp_version"])' "$SOURCE_LOCK")"
+work="/src/External/NativeStatic/.work/zig-sources/$skia_version-$(sha256sum "$SOURCE_LOCK" | cut -c1-16)"
+output="$5/$1/$2"
 python3 build/linux-toolchain/build-cross.py --target "$2" --sources-manifest "$work/cross-sources.json" --work /src/External/NativeStatic/.work/toolchains --output "$output/build" --jobs "$3"
 python3 build/linux-toolchain/package-zig.py --rid "$2" --input "$output/build" --output "$output/native"
 '''
             with (output / (version + '-' + rid + '.log')).open('a') as log:
-                code = subprocess.call(docker + [command, 'build', version, rid, str(args.jobs)], stdout=log, stderr=subprocess.STDOUT)
+                code = subprocess.call(docker + [command, 'build', version, rid, str(args.jobs), profiles[version], '/src/' + str(output.relative_to(ROOT))], stdout=log, stderr=subprocess.STDOUT)
             report['builds'][key] = {'exit_code': code, 'status': 'passed' if code == 0 else 'failed'}
             save()
             print(key, report['builds'][key]['status'], flush=True)

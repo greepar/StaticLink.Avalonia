@@ -6,6 +6,7 @@ import json
 import hashlib
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 
@@ -62,6 +63,7 @@ def main():
         url, revision = value.rsplit('@', 1)
         if not re.fullmatch(r'[0-9a-f]{40}', revision):
             raise ValueError('Dependency is not commit-pinned: ' + value)
+        mutable = (source / 'gn/xamarin_inject_compat.py').is_file() and link.name in {'libpng', 'zlib', 'libjpeg-turbo'}
         if a.cache:
             key = hashlib.sha256((url + '@' + revision).encode()).hexdigest()
             cached = a.cache.resolve() / key
@@ -69,15 +71,23 @@ def main():
                 link.unlink()
             if not link.exists():
                 link.parent.mkdir(parents=True, exist_ok=True)
-                link.symlink_to(cached, target_is_directory=True)
-                path = cached
+                if mutable and cached.is_dir():
+                    # Old SkiaSharp injects relative compatibility includes into
+                    # these dependencies. Keep them inside this source checkout
+                    # so includes resolve correctly and the shared cache stays intact.
+                    shutil.copytree(cached, link)
+                elif not mutable:
+                    link.symlink_to(cached, target_is_directory=True)
+                    path = cached
         if not (path / '.git').exists():
             subprocess.run(['git', 'init', '-q', str(path)], check=True)
             subprocess.run(['git', '-C', str(path), 'remote', 'add', 'origin', url], check=True)
         current = subprocess.run(['git', '-C', str(path), 'rev-parse', 'HEAD'], capture_output=True, text=True)
         if current.stdout.strip() != revision:
             subprocess.run(['git', '-C', str(path), 'remote', 'set-url', 'origin', url], check=True)
-            subprocess.run(['git', '-C', str(path), 'fetch', '--depth=1', 'origin', revision], check=True)
+            present = subprocess.run(['git', '-C', str(path), 'cat-file', '-e', revision + '^{commit}'], capture_output=True)
+            if present.returncode:
+                subprocess.run(['git', '-C', str(path), 'fetch', '--depth=1', 'origin', revision], check=True)
             subprocess.run(['git', '-C', str(path), 'checkout', '--detach', revision], check=True)
         records[relative] = revision
     if not a.no_fetch_gn:

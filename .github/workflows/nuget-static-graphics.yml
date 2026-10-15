@@ -3,6 +3,10 @@ name: staticlink-avalonia
 on:
   workflow_dispatch:
     inputs:
+      avalonia_version:
+        description: Official stable Avalonia 11/12 version; empty selects the historical SkiaSharp profile
+        type: string
+        default: ''
       windows_retest_rids:
         description: Windows RID JSON list for artifact-based retests
         type: string
@@ -41,7 +45,7 @@ env:
   DOTNET_ALPINE_IMAGE: mcr.microsoft.com/dotnet/sdk:10.0.302-alpine3.23
 
 concurrency:
-  group: graphics-${{ github.ref }}-${{ inputs.skiasharp_version }}
+  group: graphics-${{ github.ref }}-${{ inputs.avalonia_version }}-${{ inputs.skiasharp_version }}
   cancel-in-progress: false
 
 jobs:
@@ -67,6 +71,7 @@ jobs:
     if: ${{ inputs.environment_only != true && inputs.windows_retest_run_id == '' }}
     uses: ./.github/workflows/static-graphics-preflight.yml
     with:
+      avalonia_version: ${{ inputs.avalonia_version }}
       skiasharp_version: ${{ inputs.skiasharp_version }}
 
   build-zig:
@@ -80,11 +85,56 @@ jobs:
       source_lock: ${{ needs.preflight.outputs.source_lock }}
       toolchain_image: ${{ needs.environment.outputs.image }}
 
+  build-avalonia-native:
+    if: ${{ needs.preflight.outputs.avalonia_version != '' }}
+    needs: [preflight, environment]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Build matching Avalonia.Native with Zig
+        env:
+          SOURCE_LOCK_JSON: ${{ needs.preflight.outputs.source_lock }}
+          AVALONIA_VERSION: ${{ needs.preflight.outputs.avalonia_version }}
+          TOOLCHAIN_IMAGE: ${{ needs.environment.outputs.image }}
+          GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, pathlib
+          lock = json.loads(os.environ['SOURCE_LOCK_JSON'])
+          path = pathlib.Path('build/avalonia-profiles') / (lock['avalonia_version'] + '.json')
+          path.parent.mkdir(parents=True, exist_ok=True)
+          path.write_text(json.dumps(lock, indent=2) + '\n')
+          PY
+          mkdir -p External/NativeStatic/.work/home
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+          docker pull "$TOOLCHAIN_IMAGE"
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -v "$PWD:/src" -w /src \
+            -e HOME=/src/External/NativeStatic/.work/home \
+            -e AVALONIA_PROFILE="/src/build/avalonia-profiles/$AVALONIA_VERSION.json" \
+            -e ZIG_GLOBAL_CACHE_DIR=/src/External/NativeStatic/.work/zig-global \
+            -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0='*' \
+            --entrypoint bash "$TOOLCHAIN_IMAGE" scripts/build-avalonia-profile-native.sh
+      - name: Upload matching Avalonia.Native archives
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: avalonia-native-profile
+          path: artifacts/avalonia-native/${{ needs.preflight.outputs.avalonia_version }}/**
+          if-no-files-found: error
+
   pack:
+    if: ${{ always() && needs.preflight.result == 'success' && needs.build-zig.result == 'success' && (needs.build-avalonia-native.result == 'success' || (needs.preflight.outputs.avalonia_version == '' && needs.build-avalonia-native.result == 'skipped')) }}
     runs-on: ubuntu-24.04
     needs:
       - preflight
       - build-zig
+      - build-avalonia-native
     permissions:
       contents: read
     steps:
@@ -134,6 +184,7 @@ jobs:
           test -f External/NativeStatic/win-x86/native/skia_x86_stdcall_thunks.lib
 
       - name: Pack NuGet package
+        if: ${{ needs.preflight.outputs.avalonia_version == '' }}
         env:
           SOURCE_LOCK_JSON: ${{ needs.preflight.outputs.source_lock }}
           PACKAGE_VERSION: ${{ needs.preflight.outputs.package_version }}
@@ -141,6 +192,46 @@ jobs:
         run: |
           python3 scripts/apply-release-version.py
           dotnet pack NuGet/StaticGraphics/StaticLink.Avalonia.csproj -c Release -o artifacts/nuget
+
+      - name: Download matching Avalonia.Native archives
+        if: ${{ needs.preflight.outputs.avalonia_version != '' }}
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: avalonia-native-profile
+          path: artifacts/avalonia-native/${{ needs.preflight.outputs.avalonia_version }}
+
+      - name: Verify and pack official Avalonia candidates
+        if: ${{ needs.preflight.outputs.avalonia_version != '' }}
+        env:
+          SOURCE_LOCK_JSON: ${{ needs.preflight.outputs.source_lock }}
+          AVALONIA_VERSION: ${{ needs.preflight.outputs.avalonia_version }}
+          BUILD_RESULT: ${{ needs.build-zig.result }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, pathlib, shutil
+          if os.environ['BUILD_RESULT'] != 'success':
+              raise SystemExit('Every native build matrix job must succeed')
+          lock = json.loads(os.environ['SOURCE_LOCK_JSON'])
+          version = lock['avalonia_version']
+          profile = pathlib.Path('build/avalonia-profiles') / (version + '.json')
+          profile.parent.mkdir(parents=True, exist_ok=True)
+          profile.write_text(json.dumps(lock, indent=2) + '\n')
+          pathlib.Path('build/linux-toolchain/release.lock.json').write_text(json.dumps(lock, indent=2) + '\n')
+          output = pathlib.Path('artifacts/avalonia-validation')
+          output.mkdir(parents=True, exist_ok=True)
+          builds = {}
+          for rid in ('win-x64', 'win-x86', 'win-arm64', 'linux-x64', 'linux-arm64', 'linux-musl-x64', 'linux-musl-arm64', 'osx-x64', 'osx-arm64'):
+              shutil.copytree(pathlib.Path('External/NativeStatic') / rid, output / version / rid)
+              builds[version + '/' + rid] = {'status': 'passed', 'exit_code': 0}
+          report = {'environment_exit_code': 0, 'builds': builds,
+                    'verification_source': 'Successful build-zig Actions matrix', 'run_id': os.environ['RUN_ID']}
+          (output / 'matrix.json').write_text(json.dumps(report, indent=2) + '\n')
+          PY
+          python3 scripts/pack-avalonia-profile.py --avalonia-version "$AVALONIA_VERSION"
+          mkdir -p artifacts/nuget
+          cp "artifacts/avalonia-packages/$AVALONIA_VERSION/"*.nupkg artifacts/nuget/
 
       - name: Verify portable NuGet paths
         shell: bash
@@ -173,7 +264,8 @@ jobs:
   smoke-avalonia:
     env:
       STATICLINK_SMOKE_AUTOCLOSE: "1"
-    needs: pack
+      AVALONIA_PROFILE_VERSION: ${{ needs.preflight.outputs.avalonia_version }}
+    needs: [pack, preflight]
     strategy:
       fail-fast: false
       matrix:
@@ -241,11 +333,14 @@ jobs:
           if (-not $package) { throw "StaticLink NuGet package was not downloaded." }
           if ($package.BaseName -notmatch '^StaticLink\.Avalonia\.(.+)$') { throw "Unexpected package name: $($package.Name)" }
           $version = $Matches[1]
-          $avaloniaVersion = "${{ matrix.avalonia_version }}"
+          $avaloniaVersion = $env:AVALONIA_PROFILE_VERSION
+          if (-not $avaloniaVersion) { $avaloniaVersion = "${{ matrix.avalonia_version }}" }
           if (-not $avaloniaVersion) { $avaloniaVersion = "11.3.14" }
           $projectDir = Join-Path $PWD "artifacts/avalonia-smoke-src"
           $nativeVersion = ""
-          if ("${{ matrix.rid }}".StartsWith("osx-")) { $nativeVersion = "$avaloniaVersion.${{ inputs.native_package_revision || '1' }}" }
+          if ("${{ matrix.rid }}".StartsWith("osx-")) {
+            $nativeVersion = if ($env:AVALONIA_PROFILE_VERSION) { $version } else { "$avaloniaVersion.${{ inputs.native_package_revision || '1' }}" }
+          }
           pwsh ./scripts/create-avalonia-smoke.ps1 -ProjectDir $projectDir -NuGetSource (Resolve-Path "artifacts/nuget") -StaticLinkVersion $version -AvaloniaVersion $avaloniaVersion -StaticLinkNativeVersion $nativeVersion
           dotnet publish (Join-Path $projectDir "AvaloniaStaticLinkSmoke.csproj") `
             -c Release `
@@ -267,7 +362,8 @@ jobs:
           if ($package.BaseName -notmatch '^StaticLink\.Avalonia\.(.+)$') { throw "Unexpected package name: $($package.Name)" }
           $version = $Matches[1]
           $projectDir = Join-Path $PWD "artifacts/avalonia-smoke-src"
-          pwsh ./scripts/create-avalonia-smoke.ps1 -ProjectDir $projectDir -NuGetSource "/workspace/artifacts/nuget" -StaticLinkVersion $version -AvaloniaVersion "11.3.14"
+          $avaloniaVersion = if ($env:AVALONIA_PROFILE_VERSION) { $env:AVALONIA_PROFILE_VERSION } else { "11.3.14" }
+          pwsh ./scripts/create-avalonia-smoke.ps1 -ProjectDir $projectDir -NuGetSource "/workspace/artifacts/nuget" -StaticLinkVersion $version -AvaloniaVersion $avaloniaVersion
           docker run --rm `
             -v "${{ github.workspace }}:/workspace" `
             -w /workspace `
@@ -404,8 +500,11 @@ jobs:
           if-no-files-found: warn
 
   smoke-macos-metal:
+    if: ${{ needs.preflight.outputs.avalonia_version == '' || startsWith(needs.preflight.outputs.avalonia_version, '12.') }}
     runs-on: macos-15
-    needs: pack
+    needs: [pack, preflight]
+    env:
+      AVALONIA_PROFILE_VERSION: ${{ needs.preflight.outputs.avalonia_version }}
     permissions:
       contents: read
     steps:
@@ -430,12 +529,15 @@ jobs:
           if (-not $package) { throw "StaticLink NuGet package was not downloaded." }
           if ($package.BaseName -notmatch '^StaticLink\.Avalonia\.(.+)$') { throw "Unexpected package name: $($package.Name)" }
           $projectDir = Join-Path $PWD "artifacts/avalonia-metal-smoke-src"
+          $version = $Matches[1]
+          $avaloniaVersion = if ($env:AVALONIA_PROFILE_VERSION) { $env:AVALONIA_PROFILE_VERSION } else { "12.1.0" }
+          $nativeVersion = if ($env:AVALONIA_PROFILE_VERSION) { $version } else { "$avaloniaVersion.${{ inputs.native_package_revision || '1' }}" }
           pwsh ./scripts/create-avalonia-smoke.ps1 `
             -ProjectDir $projectDir `
             -NuGetSource (Resolve-Path "artifacts/nuget") `
-            -StaticLinkVersion $Matches[1] `
-            -AvaloniaVersion "12.1.0" `
-            -StaticLinkNativeVersion "12.1.0.${{ inputs.native_package_revision || '1' }}"
+            -StaticLinkVersion $version `
+            -AvaloniaVersion $avaloniaVersion `
+            -StaticLinkNativeVersion $nativeVersion
           dotnet publish (Join-Path $projectDir "AvaloniaStaticLinkSmoke.csproj") `
             -c Release `
             -r osx-arm64 `
@@ -505,7 +607,7 @@ jobs:
   runtime-verified:
     name: Require every Avalonia runtime test
     runs-on: ubuntu-24.04
-    needs: [build-zig, pack, smoke-avalonia, smoke-macos-metal]
+    needs: [preflight, build-zig, pack, smoke-avalonia, smoke-macos-metal]
     if: ${{ always() && inputs.environment_only != true && inputs.windows_retest_run_id == '' }}
     steps:
       - name: Reject failed, cancelled, or skipped validation
@@ -514,17 +616,24 @@ jobs:
           PACK_RESULT: ${{ needs.pack.result }}
           RUNTIME_RESULT: ${{ needs.smoke-avalonia.result }}
           METAL_RESULT: ${{ needs.smoke-macos-metal.result }}
+          AVALONIA_VERSION: ${{ needs.preflight.outputs.avalonia_version }}
         run: |
           set -euo pipefail
-          for result in "$BUILD_RESULT" "$PACK_RESULT" "$RUNTIME_RESULT" "$METAL_RESULT"; do
+          for result in "$BUILD_RESULT" "$PACK_RESULT" "$RUNTIME_RESULT"; do
             if [ "$result" != success ]; then
               echo "Publication blocked: all nine RID builds and rendered Avalonia smoke tests, including Metal, must succeed."
               exit 1
             fi
           done
-          echo "All nine Avalonia runtime tests and macOS Metal passed." >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$AVALONIA_VERSION" == 11.* ]]; then
+            test "$METAL_RESULT" = skipped
+          else
+            test "$METAL_RESULT" = success
+          fi
+          echo "All nine Avalonia runtime tests and the required renderer checks passed." >> "$GITHUB_STEP_SUMMARY"
 
   publish-nuget:
+    if: ${{ always() && needs.runtime-verified.result == 'success' }}
     permissions:
       contents: read
       id-token: write
@@ -578,7 +687,8 @@ jobs:
       - smoke-avalonia
       - smoke-macos-metal
       - publish-nuget
-    if: ${{ startsWith(github.ref, 'refs/tags/staticlink-avalonia-v') || (github.event_name == 'workflow_dispatch' && inputs.publish_to_release == true) }}
+      - runtime-verified
+    if: ${{ always() && needs.runtime-verified.result == 'success' && needs.publish-nuget.result == 'success' && (startsWith(github.ref, 'refs/tags/staticlink-avalonia-v') || (github.event_name == 'workflow_dispatch' && inputs.publish_to_release == true)) }}
     permissions:
       contents: write
     steps:
@@ -619,6 +729,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PACKAGE_VERSION: ${{ needs.preflight.outputs.package_version }}
+          AVALONIA_VERSION: ${{ needs.preflight.outputs.avalonia_version || '11.3.14' }}
         run: |
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
             release_tag="${GITHUB_REF_NAME}"
@@ -634,5 +745,5 @@ jobs:
             gh release create "$release_tag" release-files/* \
               --target "$GITHUB_SHA" \
               --title "$title" \
-              --notes "NuGet package plus Avalonia 11.3.14 NativeAOT single-file smoke apps for win-x64, win-x86, win-arm64, linux-x64, linux-arm64, linux-musl-x64, linux-musl-arm64, osx-x64, and osx-arm64."
+              --notes "NuGet package plus Avalonia $AVALONIA_VERSION NativeAOT single-file smoke apps for all nine supported desktop targets."
           fi
