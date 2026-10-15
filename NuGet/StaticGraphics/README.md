@@ -22,17 +22,21 @@ Example:
 
 ### macOS
 
-For macOS, also reference `StaticLink.Avalonia.Native`. This package contains `libAvaloniaNative.a`, so its version must match the Avalonia version used by the application.
+The formal graphics package automatically restores its exact matching
+`StaticLink.Avalonia.Native` dependency, including `libAvaloniaNative.a` for macOS.
+The corresponding Native versions are:
 
 ```xml
 <!-- Avalonia 11.3.22 -->
-<PackageReference Include="StaticLink.Avalonia.Native" Version="11.3.22.1" />
+<PackageReference Include="StaticLink.Avalonia.Native" Version="11.3.22.2" />
 
 <!-- Avalonia 12.1.4 -->
 <PackageReference Include="StaticLink.Avalonia.Native" Version="12.1.4.1" />
 ```
 
-Add only the `StaticLink.Avalonia.Native` reference matching your Avalonia version.
+An explicit Native reference is optional. If your project has one, use the
+version above. Native `11.3.22.1` was already published before the Zig release;
+the new graphics package pins the freshly tested `11.3.22.2` candidate.
 
 The bundled C++ runtime targets macOS 13 or later. The package defaults
 `AppleMinOSVersion` to `13.0` for macOS NativeAOT publishing.

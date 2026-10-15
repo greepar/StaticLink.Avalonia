@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import re
+from avalonia_package_versions import native_package_version
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -37,6 +38,7 @@ def main():
             output.write('source_lock=' + json.dumps(lock, separators=(',', ':')) + '\n')
             for key in ('package_version', 'skiasharp_version', 'angle_branch', 'avalonia_version', 'harfbuzzsharp_version'):
                 output.write(key + '=' + lock[key] + '\n')
+            output.write('native_package_version=' + native_package_version(lock) + '\n')
     print(json.dumps(lock, indent=2))
 
 

@@ -52,6 +52,9 @@ The same package ID has two stable Avalonia version lines. The profiles under
 `build/avalonia-profiles` lock official NuGet package hashes, Avalonia and Skia
 commits, HarfBuzz native and managed binding commits, and the corresponding
 AvaloniaUI/angle commit. Windows x86 adapters use the locked managed bindings.
+Native `11.3.22.1` is already published, so the Avalonia 11 graphics candidate pins
+the new Zig Native candidate `11.3.22.2`. Avalonia 12 pins Native `12.1.4.1`.
+These deployment revisions are tracked separately from the compiler source locks.
 
 On a macOS x64 host with a running Lima Debian VM, Podman in the VM, .NET, and
 PowerShell, run the complete local pipeline:

@@ -271,6 +271,7 @@ jobs:
     env:
       STATICLINK_SMOKE_AUTOCLOSE: "1"
       AVALONIA_PROFILE_VERSION: ${{ needs.preflight.outputs.avalonia_version }}
+      AVALONIA_NATIVE_PACKAGE_VERSION: ${{ needs.preflight.outputs.native_package_version }}
     needs: [pack, preflight]
     strategy:
       fail-fast: false
@@ -345,7 +346,7 @@ jobs:
           $projectDir = Join-Path $PWD "artifacts/avalonia-smoke-src"
           $nativeVersion = ""
           if ("${{ matrix.rid }}".StartsWith("osx-")) {
-            $nativeVersion = if ($env:AVALONIA_PROFILE_VERSION) { $version } else { "$avaloniaVersion.${{ inputs.native_package_revision || '1' }}" }
+            $nativeVersion = if ($env:AVALONIA_PROFILE_VERSION) { $env:AVALONIA_NATIVE_PACKAGE_VERSION } else { "$avaloniaVersion.${{ inputs.native_package_revision || '1' }}" }
           }
           pwsh ./scripts/create-avalonia-smoke.ps1 -ProjectDir $projectDir -NuGetSource (Resolve-Path "artifacts/nuget") -StaticLinkVersion $version -AvaloniaVersion $avaloniaVersion -StaticLinkNativeVersion $nativeVersion
           dotnet publish (Join-Path $projectDir "AvaloniaStaticLinkSmoke.csproj") `
@@ -511,6 +512,7 @@ jobs:
     needs: [pack, preflight]
     env:
       AVALONIA_PROFILE_VERSION: ${{ needs.preflight.outputs.avalonia_version }}
+      AVALONIA_NATIVE_PACKAGE_VERSION: ${{ needs.preflight.outputs.native_package_version }}
     permissions:
       contents: read
     steps:
@@ -537,7 +539,7 @@ jobs:
           $projectDir = Join-Path $PWD "artifacts/avalonia-metal-smoke-src"
           $version = $Matches[1]
           $avaloniaVersion = if ($env:AVALONIA_PROFILE_VERSION) { $env:AVALONIA_PROFILE_VERSION } else { "12.1.0" }
-          $nativeVersion = if ($env:AVALONIA_PROFILE_VERSION) { $version } else { "$avaloniaVersion.${{ inputs.native_package_revision || '1' }}" }
+          $nativeVersion = if ($env:AVALONIA_PROFILE_VERSION) { $env:AVALONIA_NATIVE_PACKAGE_VERSION } else { "$avaloniaVersion.${{ inputs.native_package_revision || '1' }}" }
           pwsh ./scripts/create-avalonia-smoke.ps1 `
             -ProjectDir $projectDir `
             -NuGetSource (Resolve-Path "artifacts/nuget") `

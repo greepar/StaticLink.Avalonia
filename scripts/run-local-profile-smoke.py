@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
+from avalonia_package_versions import native_package_version
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -41,7 +42,7 @@ def main():
                     '-ProjectDir', str(project), '-NuGetSource', str(feed),
                     '-StaticLinkVersion', profile['package_version'],
                     '-AvaloniaVersion', args.avalonia_version,
-                    '-StaticLinkNativeVersion', profile['package_version'] if args.rid.startswith('osx') else ''], check=True)
+                    '-StaticLinkNativeVersion', ''], check=True)
     config_path = project / 'NuGet.config'
     config = ET.parse(config_path)
     mapping = ET.SubElement(config.getroot(), 'packageSourceMapping')
@@ -81,7 +82,7 @@ def main():
     renderers = ['opengl'] if args.rid == 'linux-x64' or args.avalonia_version.startswith('11.') else ['default', 'metal']
     consumed = [package]
     if args.rid.startswith('osx'):
-        consumed.append(feed / ('StaticLink.Avalonia.Native.' + profile['package_version'] + '.nupkg'))
+        consumed.append(feed / ('StaticLink.Avalonia.Native.' + native_package_version(profile) + '.nupkg'))
     hashes = {}
     for path in consumed + [app]:
         with path.open('rb') as stream:

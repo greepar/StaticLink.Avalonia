@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 import subprocess
 import zipfile
+import xml.etree.ElementTree as ET
+from avalonia_package_versions import native_package_version
 
 ROOT = Path(__file__).resolve().parents[1]
 RIDS = ['linux-x64', 'linux-arm64', 'linux-musl-x64', 'linux-musl-arm64',
@@ -19,6 +21,7 @@ def main():
     args = parser.parse_args()
     profile_path = ROOT / 'build/avalonia-profiles' / (args.avalonia_version + '.json')
     profile = json.loads(profile_path.read_text())
+    native_version = native_package_version(profile)
     report = json.loads((args.validation_dir / 'matrix.json').read_text())
     if report.get('environment_exit_code') != 0:
         raise SystemExit('The toolchain environment gate must pass before packing')
@@ -59,14 +62,32 @@ def main():
                 raise SystemExit('Missing native archive: ' + filename)
     feed = ROOT / 'artifacts/avalonia-packages' / args.avalonia_version
     feed.mkdir(parents=True, exist_ok=True)
+    for previous in feed.glob('StaticLink.Avalonia.Native.*.nupkg'):
+        if previous.name != 'StaticLink.Avalonia.Native.' + native_version + '.nupkg':
+            previous.unlink()
     subprocess.run(['dotnet', 'pack', str(ROOT / 'NuGet/AvaloniaNative/StaticLink.Avalonia.Native.csproj'),
-                    '-c', 'Release', '-o', str(feed), '-p:PackageVersion=' + profile['package_version'],
+                    '-c', 'Release', '-o', str(feed), '-p:PackageVersion=' + native_version,
                     '-p:StaticLinkAvaloniaNativeArchivesRoot=' + str(native_root)], check=True)
+    config = ET.Element('configuration')
+    sources = ET.SubElement(config, 'packageSources')
+    ET.SubElement(sources, 'clear')
+    ET.SubElement(sources, 'add', key='local-staticlink', value=str(feed))
+    ET.SubElement(sources, 'add', key='nuget.org', value='https://api.nuget.org/v3/index.json')
+    mapping = ET.SubElement(config, 'packageSourceMapping')
+    local = ET.SubElement(mapping, 'packageSource', key='local-staticlink')
+    ET.SubElement(local, 'package', pattern='StaticLink.Avalonia*')
+    upstream = ET.SubElement(mapping, 'packageSource', key='nuget.org')
+    ET.SubElement(upstream, 'package', pattern='*')
+    config_path = feed / 'NuGet.config'
+    ET.ElementTree(config).write(config_path, encoding='utf-8', xml_declaration=True)
     subprocess.run(['dotnet', 'pack', str(ROOT / 'NuGet/StaticGraphics/StaticLink.Avalonia.csproj'),
                     '-c', 'Release', '-o', str(feed), '-p:PackageVersion=' + profile['package_version'],
                     '-p:StaticLinkSkiaSharpVersion=[' + profile['skiasharp_version'] + ']',
                     '-p:StaticLinkHarfBuzzSharpVersion=[' + profile['harfbuzzsharp_version'] + ']',
                     '-p:StaticLinkAvaloniaVersion=[' + profile['avalonia_version'] + ']',
+                    '-p:StaticLinkAvaloniaNativeVersion=[' + native_version + ']',
+                    '-p:RestoreConfigFile=' + str(config_path),
+                    '-p:RestoreForce=true',
                     '-p:StaticLinkNativeArchivesRoot=' + str((args.validation_dir / args.avalonia_version).resolve()),
                     '-p:StaticLinkSourceLockFile=' + str(profile_path)], check=True)
     package = feed / ('StaticLink.Avalonia.' + profile['package_version'] + '.nupkg')
@@ -77,6 +98,10 @@ def main():
         for rid in RIDS:
             if f'static/{rid}/native/zig-build.json' not in names:
                 raise SystemExit('Packed candidate is missing target ' + rid)
+        spec = ET.fromstring(archive.read(next(name for name in names if name.endswith('.nuspec'))))
+        dependencies = [item for item in spec.iter() if item.tag.rsplit('}', 1)[-1] == 'dependency']
+        if not any(item.attrib.get('id') == 'StaticLink.Avalonia.Native' and item.attrib.get('version') == '[' + native_version + ']' for item in dependencies):
+            raise SystemExit('The candidate must pin its tested Avalonia.Native package')
     print('Complete stable candidate packed:', package)
 
 

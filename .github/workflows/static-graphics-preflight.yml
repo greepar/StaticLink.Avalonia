@@ -22,6 +22,8 @@ on:
         value: ${{ jobs.validate.outputs.avalonia_version }}
       harfbuzzsharp_version:
         value: ${{ jobs.validate.outputs.harfbuzzsharp_version }}
+      native_package_version:
+        value: ${{ jobs.validate.outputs.native_package_version }}
   workflow_dispatch:
 
 jobs:
@@ -34,6 +36,7 @@ jobs:
       angle_branch: ${{ steps.versions.outputs.angle_branch }}
       avalonia_version: ${{ steps.versions.outputs.avalonia_version }}
       harfbuzzsharp_version: ${{ steps.versions.outputs.harfbuzzsharp_version }}
+      native_package_version: ${{ steps.versions.outputs.native_package_version }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
