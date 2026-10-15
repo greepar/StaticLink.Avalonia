@@ -682,7 +682,16 @@ jobs:
             exit 1
           fi
 
-          for package in artifacts/nuget/*.nupkg; do
+          shopt -s nullglob
+          native_packages=(artifacts/nuget/StaticLink.Avalonia.Native.*.nupkg)
+          graphics_packages=()
+          for package in artifacts/nuget/StaticLink.Avalonia.*.nupkg; do
+            [[ "$(basename "$package")" == StaticLink.Avalonia.Native.* ]] && continue
+            graphics_packages+=("$package")
+          done
+          test "${#graphics_packages[@]}" -gt 0
+          # Publish dependencies before the package that references them.
+          for package in "${native_packages[@]}" "${graphics_packages[@]}"; do
             dotnet nuget push "$package" \
               --source "https://api.nuget.org/v3/index.json" \
               --api-key "$NUGET_API_KEY" \
