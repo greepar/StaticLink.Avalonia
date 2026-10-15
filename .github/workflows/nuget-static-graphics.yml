@@ -268,6 +268,7 @@ jobs:
           if-no-files-found: error
 
   smoke-avalonia:
+    name: "Avalonia ${{ needs.preflight.outputs.avalonia_version || matrix.avalonia_version || '11.3.14' }} / ${{ matrix.rid }}"
     env:
       STATICLINK_SMOKE_AUTOCLOSE: "1"
       AVALONIA_PROFILE_VERSION: ${{ needs.preflight.outputs.avalonia_version }}
@@ -507,6 +508,7 @@ jobs:
           if-no-files-found: warn
 
   smoke-macos-metal:
+    name: "Avalonia ${{ needs.preflight.outputs.avalonia_version || '12.1.0' }} / Metal"
     if: ${{ needs.preflight.outputs.avalonia_version == '' || startsWith(needs.preflight.outputs.avalonia_version, '12.') }}
     runs-on: macos-15
     needs: [pack, preflight]
