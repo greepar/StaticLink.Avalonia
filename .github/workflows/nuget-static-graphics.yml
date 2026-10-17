@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       avalonia_version:
-        description: Official Avalonia profile; skia3 defaults to Avalonia 12.1.4
+        description: Avalonia runtime baseline for this SkiaSharp daily branch
         type: string
         default: '12.1.4'
       toolchain_image:
@@ -16,7 +16,7 @@ on:
         type: boolean
         default: false
       skiasharp_version:
-        description: Stable SkiaSharp version from this branch major; empty uses the branch version
+        description: Published stable SkiaSharp version in this daily major; empty selects latest
         type: string
         default: ''
       native_package_revision:
@@ -133,7 +133,7 @@ jobs:
           SKIASHARP_VERSION: ${{ needs.preflight.outputs.skiasharp_version }}
         run: |
           python3 scripts/apply-release-version.py
-          dotnet pack NuGet/StaticGraphics/StaticLink.Avalonia.csproj -c Release -o artifacts/nuget
+          dotnet pack NuGet/StaticGraphics/StaticLink.Avalonia.csproj -c Release -o artifacts/nuget -bl:artifacts/pack-{}.binlog
 
       - name: Verify and pack official graphics candidate
         if: ${{ needs.preflight.outputs.avalonia_version != '' }}
@@ -229,7 +229,7 @@ jobs:
           - rid: linux-musl-arm64
             runner: ubuntu-24.04-arm
           - rid: osx-x64
-            runner: macos-15
+            runner: macos-15-intel
             avalonia_version: 11.3.14
           - rid: osx-arm64
             runner: macos-15
@@ -293,6 +293,7 @@ jobs:
             -c Release `
             -r "${{ matrix.rid }}" `
             --configfile (Join-Path $projectDir "NuGet.config") `
+            -bl:"$PWD/artifacts/publish-${{ matrix.rid }}-{}.binlog" `
             /p:PublishAot=true `
             /p:SelfContained=true `
             /p:PublishSingleFile=true `
@@ -315,7 +316,7 @@ jobs:
             -v "${{ github.workspace }}:/workspace" `
             -w /workspace `
             "${{ env.DOTNET_ALPINE_IMAGE }}" `
-            sh -c "apk add --no-cache clang lld build-base zlib-dev fontconfig-dev libffi-dev wayland-dev libx11-dev libxext-dev libxcb-dev && dotnet publish /workspace/artifacts/avalonia-smoke-src/AvaloniaStaticLinkSmoke.csproj -c Release -r ${{ matrix.rid }} --configfile /workspace/artifacts/avalonia-smoke-src/NuGet.config /p:PublishAot=true /p:SelfContained=true /p:PublishSingleFile=true /p:StripSymbols=true /p:PublishDir=/workspace/artifacts/smoke-${{ matrix.rid }}/"
+            sh -c "apk add --no-cache clang lld build-base zlib-dev fontconfig-dev libffi-dev wayland-dev libx11-dev libxext-dev libxcb-dev && dotnet publish /workspace/artifacts/avalonia-smoke-src/AvaloniaStaticLinkSmoke.csproj -c Release -r ${{ matrix.rid }} -bl:/workspace/artifacts/publish-${{ matrix.rid }}-{}.binlog --configfile /workspace/artifacts/avalonia-smoke-src/NuGet.config /p:PublishAot=true /p:SelfContained=true /p:PublishSingleFile=true /p:StripSymbols=true /p:PublishDir=/workspace/artifacts/smoke-${{ matrix.rid }}/"
 
       - name: Verify no dynamic graphics libraries remain
         shell: pwsh
@@ -498,6 +499,7 @@ jobs:
             -c Release `
             -r osx-arm64 `
             --configfile (Join-Path $projectDir "NuGet.config") `
+            -bl:"$PWD/artifacts/publish-osx-arm64-metal-{}.binlog" `
             /p:PublishAot=true `
             /p:SelfContained=true `
             /p:PublishSingleFile=true `

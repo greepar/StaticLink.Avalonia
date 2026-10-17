@@ -1,3 +1,5 @@
+> This is the **skia4-daily** preview branch. See [DAILY.md](DAILY.md) for version policy, source locks, and runtime publication gates.
+
 > 3/4 分支的原生图形库使用 Linux 上的 Zig 构建。SkiaSharp 3.119.4、4.150.1、4.153.1 已通过九平台 Avalonia 运行验证与 macOS Metal 专项；每日发布必须重新通过运行关卡。验证范围与 Action 记录见 [RUNTIME-VALIDATION.md](RUNTIME-VALIDATION.md)。
 
 # StaticLink.Avalonia
