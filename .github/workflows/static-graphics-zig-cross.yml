@@ -19,13 +19,6 @@ on:
       source_lock:
         type: string
         required: true
-  workflow_dispatch:
-    inputs:
-      skiasharp_version:
-        description: Locked SkiaSharp release profile
-        type: string
-        default: '4.150.1'
-
 permissions:
   contents: read
   packages: write

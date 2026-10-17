@@ -24,8 +24,6 @@ on:
         value: ${{ jobs.validate.outputs.harfbuzzsharp_version }}
       native_package_version:
         value: ${{ jobs.validate.outputs.native_package_version }}
-  workflow_dispatch:
-
 jobs:
   validate:
     runs-on: ubuntu-24.04
