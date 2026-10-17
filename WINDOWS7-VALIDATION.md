@@ -83,4 +83,4 @@ The tested guest already has the required 32-bit UCRT and VCRUNTIME140 DLLs. The
 
 Compact copies of the final x64/x86 validation reports and native/application guest logs are committed under `build/windows7-validation/`. Full build outputs and the runnable ZIPs remain in the local artifact directories above.
 
-Handoff: changes are on `fix/windows7-native-compat`. No NuGet upload or workflow dispatch was requested. Both daily workflows are temporarily disabled at the user's request; restore scheduling only when work resumes.
+Handoff: changes are on `skiasharp2` (renamed from `fix/windows7-native-compat`). No NuGet upload or workflow dispatch was requested. Both daily workflows are temporarily disabled at the user's request; restore scheduling only when work resumes.

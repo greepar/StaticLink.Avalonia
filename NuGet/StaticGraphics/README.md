@@ -2,6 +2,15 @@
 
 Static native libraries for Avalonia single-file NativeAOT publishing.
 
+## SkiaSharp 2 release line
+
+The `skiasharp2` branch maintains the official Avalonia 11 / SkiaSharp 2
+combination. Its Windows x64 and x86 consumers have also been tested on
+Windows 7 SP1 x64 (x86 through WoW64). These compatibility changes preserve
+Avalonia's normal themes and OS-dependent window features. The updated
+combined package is a release candidate pending the complete release gate;
+it has not yet been uploaded to NuGet.
+
 ## Install
 
 Choose the formal package version matching your official Avalonia release. The
