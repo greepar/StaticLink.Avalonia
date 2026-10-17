@@ -77,7 +77,7 @@ def main():
         avalonia = github(f"repos/AvaloniaUI/Avalonia/git/tags/{avalonia['sha']}")['object']
     profile = {
         'avalonia_version': version, 'avalonia_revision': avalonia['sha'],
-        'package_version': f'{version}.{args.revision}',
+        'package_version': f'{skia}.{args.revision}',
         'skiasharp_version': skia, 'skiasharp_revision': skia_repo['commit'],
         'skia_revision': skia_commit, 'harfbuzzsharp_version': hb,
         'harfbuzz_revision': hb_revision, 'harfbuzzsharp_revision': hb_managed_repo['commit'],

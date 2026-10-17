@@ -4,7 +4,7 @@ Static native libraries for Avalonia single-file NativeAOT publishing.
 
 ## SkiaSharp 2 release line
 
-The `skiasharp2` branch maintains the official Avalonia 11 / SkiaSharp 2
+The `skia2` branch maintains the official Avalonia 11 / SkiaSharp 2
 combination. Its Windows x64 and x86 consumers have also been tested on
 Windows 7 SP1 x64 (x86 through WoW64). These compatibility changes preserve
 Avalonia's normal themes and OS-dependent window features. The updated
@@ -18,7 +18,7 @@ package pins the corresponding official SkiaSharp, HarfBuzzSharp, and ANGLE sour
 
 | Avalonia version | SkiaSharp version | `StaticLink.Avalonia` version |
 | --- | --- | --- |
-| 11.3.22 | 2.88.9 | `11.3.22.1` |
+| 11.3.22 | 2.88.9 | `2.88.9.1` |
 | 12.1.4 | 3.119.4 | `12.1.4.1` |
 
 Example:

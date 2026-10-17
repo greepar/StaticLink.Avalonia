@@ -21,7 +21,9 @@ def main():
     path = ROOT / 'build/avalonia-profiles' / (args.avalonia_version + '.json')
     lock = json.loads(path.read_text())
     if lock['avalonia_version'] != args.avalonia_version or not re.fullmatch(
-            re.escape(args.avalonia_version) + r'\.[1-9]\d*', lock['package_version']):
+            # Retain legacy Avalonia-numbered profiles during migration.
+            '(?:' + re.escape(lock['skiasharp_version']) + '|' +
+            re.escape(args.avalonia_version) + r')\.[1-9]\d*', lock['package_version']):
         raise SystemExit('Profile and stable package version do not match')
     for key in ('avalonia_revision', 'skiasharp_revision', 'skia_revision',
                 'harfbuzz_revision', 'harfbuzzsharp_revision', 'angle_revision'):
