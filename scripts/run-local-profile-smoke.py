@@ -42,7 +42,7 @@ def main():
                     '-ProjectDir', str(project), '-NuGetSource', str(feed),
                     '-StaticLinkVersion', profile['package_version'],
                     '-AvaloniaVersion', args.avalonia_version,
-                    '-StaticLinkNativeVersion', ''], check=True)
+                    '-StaticLinkNativeVersion', native_package_version(profile) if args.rid.startswith('osx-') else ''], check=True)
     config_path = project / 'NuGet.config'
     config = ET.parse(config_path)
     mapping = ET.SubElement(config.getroot(), 'packageSourceMapping')

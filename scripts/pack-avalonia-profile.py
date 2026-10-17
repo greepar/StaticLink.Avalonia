@@ -85,7 +85,6 @@ def main():
                     '-p:StaticLinkSkiaSharpVersion=[' + profile['skiasharp_version'] + ']',
                     '-p:StaticLinkHarfBuzzSharpVersion=[' + profile['harfbuzzsharp_version'] + ']',
                     '-p:StaticLinkAvaloniaVersion=[' + profile['avalonia_version'] + ']',
-                    '-p:StaticLinkAvaloniaNativeVersion=[' + native_version + ']',
                     '-p:RestoreConfigFile=' + str(config_path),
                     '-p:RestoreForce=true',
                     '-p:StaticLinkNativeArchivesRoot=' + str((args.validation_dir / args.avalonia_version).resolve()),
@@ -100,8 +99,8 @@ def main():
                 raise SystemExit('Packed candidate is missing target ' + rid)
         spec = ET.fromstring(archive.read(next(name for name in names if name.endswith('.nuspec'))))
         dependencies = [item for item in spec.iter() if item.tag.rsplit('}', 1)[-1] == 'dependency']
-        if not any(item.attrib.get('id') == 'StaticLink.Avalonia.Native' and item.attrib.get('version') == '[' + native_version + ']' for item in dependencies):
-            raise SystemExit('The candidate must pin its tested Avalonia.Native package')
+        if any(item.attrib.get('id') == 'StaticLink.Avalonia.Native' for item in dependencies):
+            raise SystemExit('The graphics package must not depend on the separate macOS Native package')
     print('Complete stable candidate packed:', package)
 
 

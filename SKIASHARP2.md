@@ -13,7 +13,7 @@ is one verified capability of this line, not a separate UI or package product.
 | HarfBuzzSharp | 8.3.1.1 |
 | Official ANGLE source profile | 2.1.25547.20250602 |
 | Main package | StaticLink.Avalonia 11.3.22.1 |
-| macOS native dependency | StaticLink.Avalonia.Native 11.3.22.2 |
+| Separate macOS native package (explicit reference) | StaticLink.Avalonia.Native 11.3.22.2 |
 
 Source revisions are pinned in `build/avalonia-profiles/11.3.22.json`. Use the
 profile packer rather than a bare pack of the historical generic project:
