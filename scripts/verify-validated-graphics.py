@@ -37,18 +37,24 @@ def main():
     jobs = []
     page = 1
     while True:
-        batch = api(endpoint + f'/jobs?filter=latest&per_page=100&page={page}')['jobs']
+        batch = api(endpoint + f'/jobs?filter=all&per_page=100&page={page}')['jobs']
         jobs.extend(batch)
         if len(batch) < 100:
             break
         page += 1
+    # A partial rerun may retain successful jobs from an older attempt.
+    # Select the newest execution of each named job, ignoring obsolete failures.
+    latest = {}
+    for job in sorted(jobs, key=lambda item: item['id']):
+        latest[job['name']] = job
+    jobs = list(latest.values())
     required = ['pack', 'Require every Avalonia runtime test']
     required += ['Avalonia 12.1.4 / ' + rid for rid in RIDS]
     for name in required:
         matches = [job for job in jobs if job['name'] == name]
         if len(matches) != 1 or matches[0]['conclusion'] != 'success':
             raise SystemExit('Required source job did not succeed: ' + name)
-    metal = [job for job in jobs if '/ Metal' in job['name']]
+    metal = [job for job in jobs if job['name'] == 'Avalonia 12.1.4 / Metal']
     if len(metal) != 1 or metal[0]['conclusion'] != 'success':
         raise SystemExit('Source must pass the real Metal validation')
     if args.package_dir is None:
