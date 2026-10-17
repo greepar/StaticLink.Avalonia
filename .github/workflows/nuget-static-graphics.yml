@@ -11,6 +11,10 @@ on:
         description: Immutable Zig toolchain image used by local and CI validation
         type: string
         default: 'ghcr.io/greepar/staticlink.avalonia-zig@sha256:e54b069aed7c880ea09e416886f8759df75eb283ca923dcfa37321fa3e6e9bfe'
+      validated_run_id:
+        description: Publish this completed daily validation artifact without rebuilding
+        type: string
+        default: ''
       environment_only:
         description: Validate the complete toolchain container without building release libraries
         type: boolean
@@ -50,6 +54,7 @@ concurrency:
 
 jobs:
   environment:
+    if: ${{ inputs.validated_run_id == '' }}
     permissions:
       contents: read
       packages: write
@@ -58,7 +63,7 @@ jobs:
       image: ${{ inputs.toolchain_image || 'ghcr.io/greepar/staticlink.avalonia-zig@sha256:e54b069aed7c880ea09e416886f8759df75eb283ca923dcfa37321fa3e6e9bfe' }}
 
   preflight:
-    if: ${{ inputs.environment_only != true }}
+    if: ${{ inputs.environment_only != true && inputs.validated_run_id == '' }}
     uses: ./.github/workflows/static-graphics-preflight.yml
     with:
       avalonia_version: ${{ inputs.avalonia_version }}
@@ -572,7 +577,7 @@ jobs:
     name: Require every Avalonia runtime test
     runs-on: ubuntu-24.04
     needs: [preflight, build-zig, pack, smoke-avalonia, smoke-macos-metal]
-    if: ${{ always() && inputs.environment_only != true }}
+    if: ${{ always() && inputs.environment_only != true && inputs.validated_run_id == '' }}
     steps:
       - name: Reject failed, cancelled, or skipped validation
         env:
@@ -719,3 +724,51 @@ jobs:
               --title "$title" \
               --notes "NuGet package plus Avalonia $AVALONIA_VERSION NativeAOT single-file smoke apps for all nine supported desktop targets."
           fi
+
+  publish-validated:
+    name: Publish the exact validated daily artifact
+    if: ${{ inputs.validated_run_id != '' && inputs.publish_to_nuget == true }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_RUN_ID: ${{ inputs.validated_run_id }}
+      RELEASE_BRANCH: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Require a complete successful source validation
+        run: python3 scripts/verify-validated-graphics.py --run-id "$SOURCE_RUN_ID" --branch "$RELEASE_BRANCH"
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: staticlink-avalonia-nuget
+          run-id: ${{ inputs.validated_run_id }}
+          github-token: ${{ github.token }}
+          path: artifacts/validated-package
+      - name: Verify package identity, dependencies and nine native source manifests
+        run: python3 scripts/verify-validated-graphics.py --run-id "$SOURCE_RUN_ID" --branch "$RELEASE_BRANCH" --package-dir artifacts/validated-package
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: '10.0.302'
+      - name: NuGet Trusted Publishing login
+        id: login
+        if: ${{ vars.NUGET_USER != '' }}
+        uses: NuGet/login@v1
+        with:
+          user: ${{ vars.NUGET_USER }}
+      - name: Publish verified daily package
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY || secrets.NUGET_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$NUGET_API_KEY"
+          for package in artifacts/validated-package/StaticLink.Avalonia.*.nupkg; do
+            dotnet nuget push "$package" --source https://api.nuget.org/v3/index.json --api-key "$NUGET_API_KEY" --skip-duplicate
+          done
+      - name: Preserve publication provenance
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: verified-publication
+          path: artifacts/validated-package/verified-publication.json
