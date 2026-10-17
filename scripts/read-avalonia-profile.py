@@ -23,11 +23,12 @@ def main():
     if lock.get('release_channel') == 'daily':
         config = json.loads((ROOT / 'build/skia-daily.json').read_text())
         if (config['skiasharp_major'] != lock['skiasharp_major'] or
-                config['avalonia_version'] != args.avalonia_version or
+                args.avalonia_version not in config['validation_avalonia_versions'] or
+                (args.avalonia_version != config['avalonia_version'] and not lock.get('daily_validation_only')) or
                 not lock['skiasharp_version'].startswith(str(config['skiasharp_major']) + '.') or
                 not re.fullmatch(re.escape(lock['skiasharp_version']) +
-                                 r'-preview\.\d{8}\.\d+\.\d+', lock['package_version'])):
-            raise SystemExit('Daily package must match its branch major and preview version policy')
+                                 '-' + re.escape(lock['angle_package_version']) + r'\.daily\.\d+\.\d+', lock['package_version'])):
+            raise SystemExit('Daily package must match its branch major and daily version policy')
     elif not re.fullmatch(
             '(?:' + re.escape(lock['skiasharp_version']) + '|' +
             re.escape(args.avalonia_version) + r')\.[1-9]\d*', lock['package_version']):

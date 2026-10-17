@@ -1,0 +1,89 @@
+{
+  "rid": "osx-x64",
+  "host_arch": "x86_64",
+  "source_run": 39055626894,
+  "source_artifact": 12109733856,
+  "managed_packages": [
+    "Avalonia/12.1.4",
+    "Avalonia.Skia/12.1.4",
+    "HarfBuzzSharp/14.2.1.301",
+    "SkiaSharp/4.153.1"
+  ],
+  "runs": [
+    {
+      "renderer": "default",
+      "attempt": 1,
+      "exit_code": 0,
+      "markers": [
+        [
+          "default",
+          "Metal"
+        ]
+      ],
+      "passed": true
+    },
+    {
+      "renderer": "default",
+      "attempt": 2,
+      "exit_code": 0,
+      "markers": [
+        [
+          "default",
+          "Metal"
+        ]
+      ],
+      "passed": true
+    },
+    {
+      "renderer": "metal",
+      "attempt": 1,
+      "exit_code": 0,
+      "markers": [
+        [
+          "metal",
+          "Metal"
+        ]
+      ],
+      "passed": true
+    },
+    {
+      "renderer": "metal",
+      "attempt": 2,
+      "exit_code": 0,
+      "markers": [
+        [
+          "metal",
+          "Metal"
+        ]
+      ],
+      "passed": true
+    },
+    {
+      "renderer": "opengl",
+      "attempt": 1,
+      "exit_code": 0,
+      "markers": [
+        [
+          "opengl",
+          "OpenGL"
+        ]
+      ],
+      "passed": true
+    },
+    {
+      "renderer": "opengl",
+      "attempt": 2,
+      "exit_code": 0,
+      "markers": [
+        [
+          "opengl",
+          "OpenGL"
+        ]
+      ],
+      "passed": true
+    }
+  ],
+  "dynamic_graphics_libraries": false,
+  "executable_sha256": "dfc9edc2614f29dba99eafd9786c8ff97ff99b61fe3517ae45e8d1bcda782ed5",
+  "passed": true
+}
