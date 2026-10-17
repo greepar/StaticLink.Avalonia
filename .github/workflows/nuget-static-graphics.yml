@@ -11,14 +11,6 @@ on:
         description: Immutable Zig toolchain image used by local and CI validation
         type: string
         default: 'ghcr.io/greepar/staticlink.avalonia-zig@sha256:e54b069aed7c880ea09e416886f8759df75eb283ca923dcfa37321fa3e6e9bfe'
-      windows_retest_rids:
-        description: Windows RID JSON list for artifact-based retests
-        type: string
-        default: '["win-x64","win-x86","win-arm64"]'
-      windows_retest_run_id:
-        description: Reuse this previous run's NuGet artifact for Windows-only linker/runtime tests
-        type: string
-        default: ''
       environment_only:
         description: Validate the complete toolchain container without building release libraries
         type: boolean
@@ -53,19 +45,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  windows-retest:
-    if: ${{ inputs.windows_retest_run_id != '' }}
-    permissions:
-      contents: read
-      actions: read
-      packages: write
-    uses: ./.github/workflows/windows-static-smoke.yml
-    with:
-      baseline_run_id: ${{ inputs.windows_retest_run_id }}
-      rids: ${{ inputs.windows_retest_rids }}
-
   environment:
-    if: ${{ inputs.windows_retest_run_id == '' }}
     permissions:
       contents: read
       packages: write
@@ -74,7 +54,7 @@ jobs:
       image: ${{ inputs.toolchain_image || 'ghcr.io/greepar/staticlink.avalonia-zig@sha256:e54b069aed7c880ea09e416886f8759df75eb283ca923dcfa37321fa3e6e9bfe' }}
 
   preflight:
-    if: ${{ inputs.environment_only != true && inputs.windows_retest_run_id == '' }}
+    if: ${{ inputs.environment_only != true }}
     uses: ./.github/workflows/static-graphics-preflight.yml
     with:
       avalonia_version: ${{ inputs.avalonia_version }}
@@ -584,7 +564,7 @@ jobs:
     name: Require every Avalonia runtime test
     runs-on: ubuntu-24.04
     needs: [preflight, build-zig, pack, smoke-avalonia, smoke-macos-metal]
-    if: ${{ always() && inputs.environment_only != true && inputs.windows_retest_run_id == '' }}
+    if: ${{ always() && inputs.environment_only != true }}
     steps:
       - name: Reject failed, cancelled, or skipped validation
         env:
