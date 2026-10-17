@@ -52,7 +52,8 @@ compatibility; the release workflow gates publication on consumer OS tests.
 
 ## Run
 
-Use the `zig-recent-regression` manual Action for recent-version full matrices.
+Use the `staticlink-avalonia` manual Action for full builds, runtime smoke tests,
+and optional publication. Choose the appropriate release branch and profile.
 Use `static-graphics-zig-cross-debian12` for one pinned release and nine RIDs.
 For already synced sources, run `build/linux-toolchain/build-cross.py --help`;
 `--configure-only` configures without compiling, while `--component skia` checks
