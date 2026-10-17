@@ -1,4 +1,4 @@
-name: daily-native-release
+name: skiasharp-daily
 
 on:
   schedule:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       publish_to_nuget:
-        description: Publish candidates after every platform runtime test succeeds
+        description: Publish preview packages after every platform runtime test succeeds
         type: boolean
         default: false
 
@@ -15,7 +15,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: daily-native-release-${{ github.ref }}
+  group: skiasharp-daily
   cancel-in-progress: false
 
 jobs:
@@ -24,35 +24,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        major: ['11', '12']
+        branch: [skia3-daily, skia4-daily]
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-      - name: Resolve official release and dispatch complete validation
+      - name: Check upstream version and dispatch only when needed
         env:
           GH_TOKEN: ${{ github.token }}
-          AVALONIA_MAJOR: ${{ matrix.major }}
-          RELEASE_REF: ${{ github.ref_name }}
+          DAILY_BRANCH: ${{ matrix.branch }}
           PUBLISH_TO_NUGET: ${{ github.event_name == 'schedule' || inputs.publish_to_nuget == true }}
         run: |
-          set -euo pipefail
-          python3 scripts/check-avalonia-releases.py --major "$AVALONIA_MAJOR"
-          python3 - <<'PY'
-          import json, os, subprocess
-          plan = json.load(open('release-plan.json'))
-          payload = {'ref': os.environ['RELEASE_REF'], 'inputs': {
-              'avalonia_version': plan['avalonia_version'],
-              'publish_to_nuget': os.environ['PUBLISH_TO_NUGET'] == 'true',
-              'publish_to_release': False,
-          }}
-          subprocess.run(['gh', 'api', '--method', 'POST',
-                          'repos/' + os.environ['GITHUB_REPOSITORY'] + '/actions/workflows/nuget-static-graphics.yml/dispatches',
-                          '--input', '-'], input=json.dumps(payload), text=True, check=True)
-          print('Dispatched complete runtime validation for ' + plan['package_version'])
-          PY
-      - name: Upload daily release plan
-        if: ${{ always() }}
+          python3 scripts/dispatch-skia-daily.py --branch "$DAILY_BRANCH" --publish-to-nuget "$PUBLISH_TO_NUGET"
+      - name: Upload version decision
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: daily-release-plan-${{ matrix.major }}
-          path: release-plan.json
-          if-no-files-found: warn
+          name: daily-plan-${{ matrix.branch }}
+          path: daily-plan.json
+          if-no-files-found: error
