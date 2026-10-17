@@ -44,3 +44,13 @@ dynamically loads libSkiaSharp; use OpenGL or Software there.
 This validation run does not publish NuGet or GitHub Releases. Daily workflows
 remain disabled. Previous manual test deliveries are replaced on the next
 update under `artifacts/vmware-test/`, without creating ZIP archives.
+
+## Independent macOS Native test dependency
+
+The graphics Actions workflow does not build or pack Avalonia.Native. Only the
+macOS application smoke jobs fetch a previously validated Native package,
+pinned by artifact ID and package SHA256 in
+`build/avalonia-native-smoke-dependencies.json`. Windows/Linux jobs and graphics
+packing do not wait for a Native build. The graphics release uploads only the
+graphics package. An expired dependency artifact fails the macOS test clearly;
+refresh the manifest from an independently validated Native build or package.
