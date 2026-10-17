@@ -26,26 +26,17 @@ jobs:
       matrix:
         branch: [skia3-daily, skia4-daily]
     steps:
-      - name: Dispatch complete build and runtime validation
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Check upstream version and dispatch only when needed
         env:
           GH_TOKEN: ${{ github.token }}
           DAILY_BRANCH: ${{ matrix.branch }}
           PUBLISH_TO_NUGET: ${{ github.event_name == 'schedule' || inputs.publish_to_nuget == true }}
         run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import json, os, subprocess
-          branch = os.environ['DAILY_BRANCH']
-          if branch not in ('skia3-daily', 'skia4-daily'):
-              raise SystemExit('Unexpected daily branch')
-          payload = {'ref': branch, 'inputs': {
-              'avalonia_version': '12.1.4',
-              'publish_to_nuget': os.environ['PUBLISH_TO_NUGET'] == 'true',
-              'publish_to_release': False,
-          }}
-          subprocess.run(['gh', 'api', '--method', 'POST',
-                          'repos/' + os.environ['GITHUB_REPOSITORY'] + '/actions/workflows/nuget-static-graphics.yml/dispatches',
-                          '--input', '-'], input=json.dumps(payload), text=True, check=True)
-          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as output:
-              output.write(f'Dispatched {branch}: nine Zig targets, Avalonia runtime smoke and required Metal checks before preview publication.\n')
-          PY
+          python3 scripts/dispatch-skia-daily.py --branch "$DAILY_BRANCH" --publish-to-nuget "$PUBLISH_TO_NUGET"
+      - name: Upload version decision
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: daily-plan-${{ matrix.branch }}
+          path: daily-plan.json
+          if-no-files-found: error

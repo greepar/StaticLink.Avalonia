@@ -12,8 +12,12 @@ are never used. ANGLE remains pinned to official Avalonia 12.1.4:
 
 ## Validation and publication
 
-The `skiasharp-daily` dispatcher runs daily at 10:20 Asia/Singapore and starts
-`nuget-static-graphics.yml` on `skia3-daily` and `skia4-daily` independently.
+The `skiasharp-daily` dispatcher checks daily at 10:20 Asia/Singapore.
+It starts a build only if the latest stable upstream SkiaSharp version has no
+matching published StaticLink package (stable or preview). Existing in-flight
+builds are skipped. Failed builds/publications are retried on a later check;
+successful publication prevents rebuilding unchanged upstream versions.
+The selected version is pinned in the dispatch inputs.
 Nine native targets are built with the pinned Zig toolchain on Linux.
 Avalonia **12.1.4** NativeAOT window/frame tests must pass on all nine targets;
 macOS ARM64 must additionally pass the real Metal check before NuGet publication.
