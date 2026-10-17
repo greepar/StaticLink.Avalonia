@@ -50,3 +50,13 @@ Windows versions. Its C++ clock selects the precise time API when available.
 The existing official Avalonia 12 / SkiaSharp 3 profile remains available in
 the repository; it is a separate release line and is not the SkiaSharp 2
 candidate described here.
+
+## Independent macOS Native test dependency
+
+The graphics Actions workflow does not build or pack Avalonia.Native. Only the
+macOS application smoke jobs fetch a previously validated Native package,
+pinned by artifact ID and package SHA256 in
+`build/avalonia-native-smoke-dependencies.json`. Windows/Linux jobs and graphics
+packing do not wait for a Native build. The graphics release uploads only the
+graphics package. An expired dependency artifact fails the macOS test clearly;
+refresh the manifest from an independently validated Native build or package.

@@ -1,0 +1,16 @@
+{
+  "11.3.22": {
+    "repository": "greepar/StaticLink.Avalonia",
+    "run_id": 38662866914,
+    "artifact_id": 11939888195,
+    "package_version": "11.3.22.2",
+    "package_sha256": "db00c9cf457d5c9852f7edd05bfa447c0c68de94f5fbca5804e4741f601fe3f6"
+  },
+  "12.1.4": {
+    "repository": "greepar/StaticLink.Avalonia",
+    "run_id": 38662866969,
+    "artifact_id": 11940101968,
+    "package_version": "12.1.4.1",
+    "package_sha256": "f4b4f39ed74cf098e2240bba2f51536cb4e78f963cf6f2df9e0e9f8ef5ffb6b0"
+  }
+}

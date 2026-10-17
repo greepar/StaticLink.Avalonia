@@ -17,6 +17,7 @@ RIDS = ['linux-x64', 'linux-arm64', 'linux-musl-x64', 'linux-musl-arm64',
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--avalonia-version', required=True)
+    parser.add_argument('--graphics-only', action='store_true', help='Pack graphics without building or packing the independent macOS Native package')
     parser.add_argument('--validation-dir', type=Path, default=ROOT / 'artifacts/avalonia-validation')
     args = parser.parse_args()
     profile_path = ROOT / 'build/avalonia-profiles' / (args.avalonia_version + '.json')
@@ -51,23 +52,24 @@ def main():
             path = args.validation_dir / args.avalonia_version / rid / 'native' / filename
             if hashlib.sha256(path.read_bytes()).hexdigest() != expected:
                 raise SystemExit('Candidate archive was modified after validation: ' + str(path))
-    native_root = ROOT / 'artifacts/avalonia-native' / args.avalonia_version
-    for rid in ('osx-x64', 'osx-arm64'):
-        native = native_root / rid / 'native'
-        manifest = json.loads((native / 'avalonia-native-build.json').read_text())
-        if manifest['source_commit'] != profile['avalonia_revision']:
-            raise SystemExit('Avalonia.Native source does not match the official release')
-        for filename in ('libAvaloniaNative.a', 'macos_font_preinit.o'):
-            if not (native / filename).is_file():
-                raise SystemExit('Missing native archive: ' + filename)
     feed = ROOT / 'artifacts/avalonia-packages' / args.avalonia_version
     feed.mkdir(parents=True, exist_ok=True)
-    for previous in feed.glob('StaticLink.Avalonia.Native.*.nupkg'):
-        if previous.name != 'StaticLink.Avalonia.Native.' + native_version + '.nupkg':
-            previous.unlink()
-    subprocess.run(['dotnet', 'pack', str(ROOT / 'NuGet/AvaloniaNative/StaticLink.Avalonia.Native.csproj'),
-                    '-c', 'Release', '-o', str(feed), '-p:PackageVersion=' + native_version,
-                    '-p:StaticLinkAvaloniaNativeArchivesRoot=' + str(native_root)], check=True)
+    if not args.graphics_only:
+        native_root = ROOT / 'artifacts/avalonia-native' / args.avalonia_version
+        for rid in ('osx-x64', 'osx-arm64'):
+            native = native_root / rid / 'native'
+            manifest = json.loads((native / 'avalonia-native-build.json').read_text())
+            if manifest['source_commit'] != profile['avalonia_revision']:
+                raise SystemExit('Avalonia.Native source does not match the official release')
+            for filename in ('libAvaloniaNative.a', 'macos_font_preinit.o'):
+                if not (native / filename).is_file():
+                    raise SystemExit('Missing native archive: ' + filename)
+        for previous in feed.glob('StaticLink.Avalonia.Native.*.nupkg'):
+            if previous.name != 'StaticLink.Avalonia.Native.' + native_version + '.nupkg':
+                previous.unlink()
+        subprocess.run(['dotnet', 'pack', str(ROOT / 'NuGet/AvaloniaNative/StaticLink.Avalonia.Native.csproj'),
+                        '-c', 'Release', '-bl:' + str(feed / 'pack-{}.binlog'), '-o', str(feed), '-p:PackageVersion=' + native_version,
+                        '-p:StaticLinkAvaloniaNativeArchivesRoot=' + str(native_root)], check=True)
     config = ET.Element('configuration')
     sources = ET.SubElement(config, 'packageSources')
     ET.SubElement(sources, 'clear')
@@ -81,7 +83,7 @@ def main():
     config_path = feed / 'NuGet.config'
     ET.ElementTree(config).write(config_path, encoding='utf-8', xml_declaration=True)
     subprocess.run(['dotnet', 'pack', str(ROOT / 'NuGet/StaticGraphics/StaticLink.Avalonia.csproj'),
-                    '-c', 'Release', '-o', str(feed), '-p:PackageVersion=' + profile['package_version'],
+                    '-c', 'Release', '-bl:' + str(feed / 'pack-{}.binlog'), '-o', str(feed), '-p:PackageVersion=' + profile['package_version'],
                     '-p:StaticLinkSkiaSharpVersion=[' + profile['skiasharp_version'] + ']',
                     '-p:StaticLinkHarfBuzzSharpVersion=[' + profile['harfbuzzsharp_version'] + ']',
                     '-p:StaticLinkAvaloniaVersion=[' + profile['avalonia_version'] + ']',
