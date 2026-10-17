@@ -1,4 +1,4 @@
-name: daily-avalonia-native
+name: osx-native-daily
 
 on:
   schedule:
@@ -15,7 +15,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: daily-avalonia-native
+  group: osx-native-daily
   cancel-in-progress: false
 
 jobs:
