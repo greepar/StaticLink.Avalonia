@@ -1,4 +1,8 @@
 {
   "skiasharp_major": 3,
-  "avalonia_version": "12.1.4"
+  "avalonia_version": "12.1.4",
+  "validation_avalonia_versions": [
+    "11.3.22",
+    "12.1.4"
+  ]
 }

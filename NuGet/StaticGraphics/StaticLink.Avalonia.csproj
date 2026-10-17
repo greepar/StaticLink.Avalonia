@@ -6,7 +6,7 @@
         <IncludeBuildOutput>false</IncludeBuildOutput>
         <SuppressDependenciesWhenPacking>false</SuppressDependenciesWhenPacking>
         <PackageId>StaticLink.Avalonia</PackageId>
-        <Version>3.119.4-preview.0</Version>
+        <Version>3.119.4-2.1.27548.20260419.daily.0.1</Version>
         <StaticLinkSkiaSharpVersion Condition="'$(StaticLinkSkiaSharpVersion)' == ''">3.119.4</StaticLinkSkiaSharpVersion>
         <StaticLinkNativeArchivesRoot Condition="'$(StaticLinkNativeArchivesRoot)' == ''">../../External/NativeStatic</StaticLinkNativeArchivesRoot>
         <StaticLinkSourceLockFile Condition="'$(StaticLinkSourceLockFile)' == ''">../../build/linux-toolchain/release.lock.json</StaticLinkSourceLockFile>

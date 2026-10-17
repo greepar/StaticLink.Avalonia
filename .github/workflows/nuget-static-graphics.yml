@@ -19,6 +19,10 @@ on:
         description: Published stable SkiaSharp version in this daily major; empty selects latest
         type: string
         default: ''
+      angle_version:
+        description: Official ANGLE package version; empty selects most recently published stable release
+        type: string
+        default: ''
       native_package_revision:
         description: Published AvaloniaNative revision for independent graphics smoke tests
         type: string
@@ -59,6 +63,8 @@ jobs:
     with:
       avalonia_version: ${{ inputs.avalonia_version }}
       skiasharp_version: ${{ inputs.skiasharp_version }}
+      angle_version: ${{ inputs.angle_version }}
+      publish_to_nuget: ${{ inputs.publish_to_nuget == true }}
 
   build-zig:
     permissions:

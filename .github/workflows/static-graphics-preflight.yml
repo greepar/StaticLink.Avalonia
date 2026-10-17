@@ -9,6 +9,12 @@ on:
       skiasharp_version:
         type: string
         default: ''
+      publish_to_nuget:
+        type: boolean
+        default: false
+      angle_version:
+        type: string
+        default: ''
     outputs:
       source_lock:
         value: ${{ jobs.validate.outputs.source_lock }}
@@ -47,6 +53,8 @@ jobs:
         id: versions
         shell: bash
         env:
+          REQUESTED_PUBLISH: ${{ inputs.publish_to_nuget }}
+          REQUESTED_ANGLE_VERSION: ${{ inputs.angle_version }}
           REQUESTED_VERSION: ${{ inputs.skiasharp_version }}
           REQUESTED_AVALONIA_VERSION: ${{ inputs.avalonia_version }}
           GH_TOKEN: ${{ github.token }}
@@ -55,10 +63,13 @@ jobs:
           if [ -f build/skia-daily.json ]; then
             baseline=$(python3 -c 'import json; print(json.load(open("build/skia-daily.json"))["avalonia_version"])')
             if [ -n "$REQUESTED_AVALONIA_VERSION" ] && [ "$REQUESTED_AVALONIA_VERSION" != "$baseline" ]; then
-              echo "Daily builds use their explicitly validated Avalonia runtime baseline." >&2
-              exit 1
+              if [ "$REQUESTED_PUBLISH" = true ]; then
+                echo "Daily publication requires the current Avalonia runtime baseline." >&2
+                exit 1
+              fi
+              baseline="$REQUESTED_AVALONIA_VERSION"
             fi
-            python3 scripts/resolve-skia-daily.py --version "$REQUESTED_VERSION"
+            python3 scripts/resolve-skia-daily.py --version "$REQUESTED_VERSION" --angle-version "$REQUESTED_ANGLE_VERSION" --avalonia-version "$baseline"
             python3 scripts/read-avalonia-profile.py --avalonia-version "$baseline" --github-output --release-lock
             exit 0
           fi

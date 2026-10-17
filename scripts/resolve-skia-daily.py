@@ -2,13 +2,14 @@
 """Lock the latest stable SkiaSharp release in this daily branch's major line."""
 import argparse
 import base64
-from datetime import datetime, timezone
 import json
 import importlib.util
 import os
 from pathlib import Path
 import re
 import urllib.request
+
+from skia_daily_sources import official_angle
 
 ROOT = Path(__file__).resolve().parents[1]
 _spec = importlib.util.spec_from_file_location("avalonia_profile", ROOT / "scripts/resolve-avalonia-profile.py")
@@ -20,6 +21,8 @@ github, nuspec = _profile_module.github, _profile_module.nuspec
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--version', default='')
+    parser.add_argument('--angle-version', default='')
+    parser.add_argument('--avalonia-version', default='')
     args = parser.parse_args()
     config = json.loads((ROOT / 'build/skia-daily.json').read_text())
     major = config['skiasharp_major']
@@ -36,12 +39,22 @@ def main():
     version = args.version or max(releases, key=lambda v: tuple(map(int, v.split('.'))))
     if version not in releases:
         raise SystemExit('Requested SkiaSharp must be a published stable release in this branch major')
-    avalonia = config['avalonia_version']
+    avalonia = args.avalonia_version or config['avalonia_version']
+    if avalonia not in config['validation_avalonia_versions']:
+        raise SystemExit('No independently validated Native/runtime baseline for this Avalonia version')
     path = ROOT / 'build/avalonia-profiles' / (avalonia + '.json')
     profile = json.loads(path.read_text())
     if profile['avalonia_version'] != avalonia:
         raise SystemExit('Unexpected Avalonia runtime baseline')
-    # Keep the baseline's official ANGLE, but follow SkiaSharp's own HarfBuzz package.
+    angle = official_angle(args.angle_version)
+    _, angle_repo, angle_hash = nuspec('Avalonia.Angle.Windows.Natives', angle['version'])
+    if angle_repo['commit'] != angle['revision']:
+        raise SystemExit('Official ANGLE source provenance changed during resolution')
+    profile.update(angle_package_version=angle['version'], angle_revision=angle['revision'],
+                   angle_branch='official-' + angle['version'],
+                   angle_repository='https://github.com/AvaloniaUI/angle.git', angle_project_patch=None)
+    profile['official_package_sha256']['angle'] = angle_hash
+    # Follow SkiaSharp's own matching managed/native HarfBuzz package.
     _, skia_repo, skia_hash = nuspec('SkiaSharp', version)
     deps, _, bridge_hash = nuspec('SkiaSharp.HarfBuzz', version)
     hb = deps['HarfBuzzSharp']
@@ -63,13 +76,13 @@ def main():
     # Do not combine a wrapper from one release with a managed ABI from another.
     if skia_repo['commit'] != hb_repo['commit']:
         raise SystemExit('SkiaSharp and HarfBuzz wrapper commits differ; explicit support is required')
-    day = datetime.now(timezone.utc).strftime('%Y%m%d')
-    run = os.environ.get('GITHUB_RUN_ID', '0')
+    run = os.environ.get('GITHUB_RUN_NUMBER', '0')
     attempt = os.environ.get('GITHUB_RUN_ATTEMPT', '1')
     if not run.isdigit() or not attempt.isdigit():
         raise SystemExit('Invalid daily run identity')
     profile.update(
-        package_version=f'{version}-preview.{day}.{run}.{attempt}',
+        daily_validation_only=avalonia != config['avalonia_version'],
+        package_version=f"{version}-{profile['angle_package_version']}.daily.{run}.{attempt}",
         skiasharp_version=version, skiasharp_revision=skia_repo['commit'],
         skia_revision=skia_revision, harfbuzzsharp_version=hb,
         harfbuzzsharp_revision=hb_repo['commit'], harfbuzz_revision=match[1],
