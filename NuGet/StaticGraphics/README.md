@@ -13,19 +13,21 @@ it has not yet been uploaded to NuGet.
 
 ## Install
 
-Choose the formal package version matching your official Avalonia release. The
-package pins the corresponding official SkiaSharp, HarfBuzzSharp, and ANGLE sources.
+Choose the package version matching your SkiaSharp dependency. The package pins
+SkiaSharp and HarfBuzzSharp and bundles the corresponding ANGLE libraries. It does
+not reference Avalonia.Desktop; your application selects its own Avalonia version.
+The following official combinations are the full CI validation baselines:
 
 | Avalonia version | SkiaSharp version | `StaticLink.Avalonia` version |
 | --- | --- | --- |
 | 11.3.22 | 2.88.9 | `2.88.9.1` |
-| 12.1.4 | 3.119.4 | `12.1.4.1` |
+| 12.1.4 | 3.119.4 | `3.119.4.1` |
 
 Example:
 ```xml
 <ItemGroup>
   <PackageReference Include="Avalonia" Version="12.1.4" />
-  <PackageReference Include="StaticLink.Avalonia" Version="12.1.4.1" />
+  <PackageReference Include="StaticLink.Avalonia" Version="3.119.4.1" />
 </ItemGroup>
 ```
 
@@ -65,7 +67,7 @@ Use the RID you need, such as `win-x86`, `linux-x64`, `linux-arm64`, `osx-arm64`
 ## Native Package Automation
 
 The daily official release workflow validates both Avalonia version lines.
-It builds all nine graphics targets and the matching macOS Avalonia.Native
-archives with Zig, then publishes and runs the candidate NativeAOT applications
+It builds all nine graphics targets with Zig and uses an independently validated
+macOS Avalonia.Native package, then publishes and runs the candidate NativeAOT applications
 on every target. Avalonia 12 also requires Metal. NuGet publication is allowed
 only after every required runtime test succeeds; duplicate versions are skipped.

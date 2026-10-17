@@ -24,7 +24,6 @@
     <ItemGroup>
         <PackageReference Include="SkiaSharp" Version="$(StaticLinkSkiaSharpVersion)" />
         <PackageReference Include="HarfBuzzSharp" Version="$(StaticLinkHarfBuzzSharpVersion)" Condition="'$(StaticLinkHarfBuzzSharpVersion)' != ''" />
-        <PackageReference Include="Avalonia.Desktop" Version="$(StaticLinkAvaloniaVersion)" Condition="'$(StaticLinkAvaloniaVersion)' != ''" />
           <None Include="buildTransitive/StaticLink.Avalonia.CppInitializers.ps1" Pack="true" PackagePath="buildTransitive/StaticLink.Avalonia.CppInitializers.ps1" />
   </ItemGroup>
 
