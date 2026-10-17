@@ -1,0 +1,10 @@
+{
+  "rid": "win-x64",
+  "avalonia_version": "12.1.4",
+  "skiasharp_version": "3.119.4",
+  "sha256": "4fe70a91f54126822fb79899f0140adab2b501560ca70cd6ccd42ae58eff87ba",
+  "validation": "User manually launched this local static NativeAOT consumer on Windows 7 and reported successful startup and display.",
+  "reported_date": "2026-10-17",
+  "automated_runtime_test": false,
+  "scope": "Startup and basic display only; no claim about all controls, drivers or x86."
+}

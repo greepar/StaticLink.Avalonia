@@ -1,5 +1,11 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup Condition="'$(PublishAot)' == 'true' and ('$(RuntimeIdentifier)' == 'osx-x64' or '$(RuntimeIdentifier)' == 'osx-arm64')">
+        <!-- The bundled Zig C++ runtime is linked for macOS 13. -->
+        <AppleMinOSVersion Condition="'$(AppleMinOSVersion)' == ''">13.0</AppleMinOSVersion>
+    </PropertyGroup>
     <PropertyGroup>
+        <StaticLinkAvaloniaPowerShell Condition="'$(StaticLinkAvaloniaPowerShell)' == '' and $([MSBuild]::IsOSPlatform('Windows'))">powershell</StaticLinkAvaloniaPowerShell>
+        <StaticLinkAvaloniaPowerShell Condition="'$(StaticLinkAvaloniaPowerShell)' == ''">pwsh</StaticLinkAvaloniaPowerShell>
         <_StaticLinkAvaloniaRid Condition="'$(RuntimeIdentifier)' == 'win-x64'">win-x64</_StaticLinkAvaloniaRid>
         <_StaticLinkAvaloniaRid Condition="'$(RuntimeIdentifier)' == 'win-x86'">win-x86</_StaticLinkAvaloniaRid>
         <_StaticLinkAvaloniaRid Condition="'$(RuntimeIdentifier)' == 'win-arm64'">win-arm64</_StaticLinkAvaloniaRid>
@@ -31,7 +37,10 @@
         <LinkerArg Include="Gdi32.lib;User32.lib" />
         <LinkerArg Include="synchronization.lib" />
         <LinkerArg Include="fontsub.lib;Ole32.lib;USP10.lib" />
-        <LinkerArg Include="d3d12.lib;d3dcompiler.lib" />
+        <LinkerArg Include="d3d12.lib" />
+            <!-- ANGLE loads its shader compiler dynamically. Zig supplies the
+                 Direct3D imports; it has no SDK d3dcompiler.lib alias. -->
+            <LinkerArg Include="d3dcompiler.lib" Condition="'$(_AotAnywhereWindowsCross)' != 'true'" />
     </ItemGroup>
 
     <Target Name="StaticLinkAvaloniaAddWindowsDirectPInvokes"
@@ -58,7 +67,7 @@
     </Target>
 
     <Target Name="StaticLinkAvaloniaAddWindowsNativeLibraries"
-            BeforeTargets="LinkNative"
+            BeforeTargets="AotAnywhereDirectLinkWindows;LinkNative"
             Condition="'$(PublishAot)' == 'true' and ('$(RuntimeIdentifier)' == 'win-x64' or '$(RuntimeIdentifier)' == 'win-x86' or '$(RuntimeIdentifier)' == 'win-arm64') and '$(_StaticLinkAvaloniaNativeRoot)' != ''">
         <ItemGroup>
             <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libHarfBuzzSharp.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libHarfBuzzSharp.lib')" />
@@ -74,7 +83,10 @@
             <LinkerArg Include="Gdi32.lib;User32.lib" />
             <LinkerArg Include="synchronization.lib" />
             <LinkerArg Include="fontsub.lib;Ole32.lib;USP10.lib" />
-            <LinkerArg Include="d3d12.lib;d3dcompiler.lib" />
+            <LinkerArg Include="d3d12.lib" />
+            <!-- ANGLE loads its shader compiler dynamically. Zig supplies the
+                 Direct3D imports; it has no SDK d3dcompiler.lib alias. -->
+            <LinkerArg Include="d3dcompiler.lib" Condition="'$(_AotAnywhereWindowsCross)' != 'true'" />
         </ItemGroup>
     </Target>
 
@@ -177,7 +189,7 @@
         <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'win-x86'">
             <_StaticLinkAvaloniaMsvcUnwind>$(IntermediateOutputPath)staticlink-msvc/unwind.lib</_StaticLinkAvaloniaMsvcUnwind>
         </PropertyGroup>
-        <Exec Condition="'$(RuntimeIdentifier)' == 'win-x86'" Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)StaticLink.Avalonia.SafeSeh.ps1&quot; -InputLibrary &quot;$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/unwind.lib&quot; -OutputLibrary &quot;$(_StaticLinkAvaloniaMsvcUnwind)&quot;" />
+        <Exec Condition="'$(RuntimeIdentifier)' == 'win-x86'" Command="$(StaticLinkAvaloniaPowerShell) -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)StaticLink.Avalonia.SafeSeh.ps1&quot; -InputLibrary &quot;$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/unwind.lib&quot; -OutputLibrary &quot;$(_StaticLinkAvaloniaMsvcUnwind)&quot;" />
         <ItemGroup>
             <FileWrites Include="$(_StaticLinkAvaloniaMsvcRuntime)" />
             <FileWrites Include="$(IntermediateOutputPath)staticlink-msvc/**/*" />
@@ -190,7 +202,7 @@
         <PropertyGroup>
             <_StaticLinkAvaloniaMsvcCpp>$(IntermediateOutputPath)staticlink-msvc/c++.lib</_StaticLinkAvaloniaMsvcCpp>
         </PropertyGroup>
-        <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)StaticLink.Avalonia.CppInitializers.ps1&quot; -InputLibrary &quot;$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/c++.lib&quot; -OutputLibrary &quot;$(_StaticLinkAvaloniaMsvcCpp)&quot;" />
+        <Exec Command="$(StaticLinkAvaloniaPowerShell) -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)StaticLink.Avalonia.CppInitializers.ps1&quot; -InputLibrary &quot;$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/c++.lib&quot; -OutputLibrary &quot;$(_StaticLinkAvaloniaMsvcCpp)&quot;" />
         <ItemGroup>
             <FileWrites Include="$(_StaticLinkAvaloniaMsvcCpp)" />
         </ItemGroup>
@@ -204,10 +216,13 @@
         <ItemGroup>
             <!-- Use Zig's static C++ implementation, but use the consumer's
                  Windows SDK import libraries and MSVC's UCRT startup helpers. -->
-            <NativeLibrary Include="$(_StaticLinkAvaloniaMsvcCpp);$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/c++abi.lib;$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/compiler_rt.lib" Condition="$(RuntimeIdentifier.StartsWith('win-'))" />
+            <NativeLibrary Include="$(_StaticLinkAvaloniaMsvcCpp);$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/c++abi.lib" Condition="$(RuntimeIdentifier.StartsWith('win-'))" />
+            <!-- Zig's cross linker adds its own compiler builtins. -->
+            <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/compiler_rt.lib" Condition="$(RuntimeIdentifier.StartsWith('win-')) and '$(_AotAnywhereWindowsCross)' != 'true'" />
             <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/zig-runtime/unwind.lib" Condition="$(RuntimeIdentifier.StartsWith('win-')) and '$(RuntimeIdentifier)' != 'win-x86'" />
             <NativeLibrary Include="$(_StaticLinkAvaloniaMsvcUnwind)" Condition="'$(RuntimeIdentifier)' == 'win-x86'" />
-            <NativeLibrary Include="ucrt.lib;libvcruntime.lib;msvcrt.lib" Condition="$(RuntimeIdentifier.StartsWith('win-'))" />
+            <!-- AotAnywhere supplies CRT startup and MSVC glue through Zig. -->
+            <NativeLibrary Include="ucrt.lib;libvcruntime.lib;msvcrt.lib" Condition="$(RuntimeIdentifier.StartsWith('win-')) and '$(_AotAnywhereWindowsCross)' != 'true'" />
             <LinkerArg Include="dwrite.lib;windowscodecs.lib;d3d11.lib;dwmapi.lib;shlwapi.lib;setupapi.lib;shell32.lib;oleaut32.lib;uuid.lib" Condition="$(RuntimeIdentifier.StartsWith('win-'))" />
             <NativeLibrary Include="$(_StaticLinkAvaloniaMsvcRuntime)" Condition="$(RuntimeIdentifier.StartsWith('win-')) and Exists('$(_StaticLinkAvaloniaMsvcRuntime)')" />
             <!-- .NET embeds its own LLVM unwind implementation. Zig's copy
@@ -217,7 +232,7 @@
             <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libEGL_static.lib" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libEGL_static.lib')" />
             <NativeLibrary Include="$(_StaticLinkAvaloniaNativeRoot)/libEGL_static.a" Condition="Exists('$(_StaticLinkAvaloniaNativeRoot)/libEGL_static.a')" />
             <NativeSystemLibrary Include="X11;Xext;xcb;wayland-client;wayland-egl;ffi" Condition="$(RuntimeIdentifier.StartsWith('linux-'))" />
-            <LinkerArg Include="/lldmingw" Condition="$(RuntimeIdentifier.StartsWith('win-'))" />
+            <LinkerArg Include="/lldmingw" Condition="$(RuntimeIdentifier.StartsWith('win-')) and '$(_AotAnywhereWindowsCross)' != 'true'" />
             <!-- Zig uses dynamic UCRT. Avoid pulling the static CRT startup
                  through MSVC TLS helpers; retain MSVC exception handling. -->
             <LinkerArg Include="/NODEFAULTLIB:libcmt.lib;/DEFAULTLIB:msvcrt.lib;/DEFAULTLIB:libvcruntime.lib" Condition="$(RuntimeIdentifier.StartsWith('win-'))" />

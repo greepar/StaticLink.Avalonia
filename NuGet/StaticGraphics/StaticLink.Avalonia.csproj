@@ -6,7 +6,10 @@
         <IncludeBuildOutput>false</IncludeBuildOutput>
         <SuppressDependenciesWhenPacking>false</SuppressDependenciesWhenPacking>
         <PackageId>StaticLink.Avalonia</PackageId>
-        <Version>3.119.4-7922.1</Version>
+        <Version>4.150.1-7922.1</Version>
+        <StaticLinkSkiaSharpVersion Condition="'$(StaticLinkSkiaSharpVersion)' == ''">4.150.1</StaticLinkSkiaSharpVersion>
+        <StaticLinkNativeArchivesRoot Condition="'$(StaticLinkNativeArchivesRoot)' == ''">../../External/NativeStatic</StaticLinkNativeArchivesRoot>
+        <StaticLinkSourceLockFile Condition="'$(StaticLinkSourceLockFile)' == ''">../../build/linux-toolchain/release.lock.json</StaticLinkSourceLockFile>
         <Authors>greepar</Authors>
         <Company>greepar</Company>
         <Description>Static SkiaSharp, HarfBuzzSharp, and ANGLE libraries for Avalonia NativeAOT single-file publishing.</Description>
@@ -19,25 +22,27 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="SkiaSharp" Version="3.119.4" />
-    </ItemGroup>
+        <PackageReference Include="SkiaSharp" Version="$(StaticLinkSkiaSharpVersion)" />
+        <PackageReference Include="HarfBuzzSharp" Version="$(StaticLinkHarfBuzzSharpVersion)" Condition="'$(StaticLinkHarfBuzzSharpVersion)' != ''" />
+        <PackageReference Include="Avalonia.Desktop" Version="$(StaticLinkAvaloniaVersion)" Condition="'$(StaticLinkAvaloniaVersion)' != ''" />
+          <None Include="buildTransitive/StaticLink.Avalonia.CppInitializers.ps1" Pack="true" PackagePath="buildTransitive/StaticLink.Avalonia.CppInitializers.ps1" />
+  </ItemGroup>
 
     <ItemGroup>
         <None Include="README.md" Pack="true" PackagePath="" />
-        <None Include="../../build/linux-toolchain/release.lock.json" Condition="Exists('../../build/linux-toolchain/release.lock.json')" Pack="true" PackagePath="buildMetadata/sources.lock.json" />
+        <None Include="$(StaticLinkSourceLockFile)" Condition="Exists('$(StaticLinkSourceLockFile)')" Pack="true" PackagePath="buildMetadata/sources.lock.json" />
         <None Include="lib/net8.0/_._" Pack="true" PackagePath="lib/net8.0/_._" />
         <None Include="buildTransitive/StaticLink.Avalonia.props" Pack="true" PackagePath="buildTransitive/$(PackageId).props" />
         <None Include="buildTransitive/StaticLink.Avalonia.targets" Pack="true" PackagePath="buildTransitive/$(PackageId).targets" />
         <None Include="buildTransitive/StaticLink.Avalonia.SafeSeh.ps1" Pack="true" PackagePath="buildTransitive/StaticLink.Avalonia.SafeSeh.ps1" />
-        <None Include="buildTransitive/StaticLink.Avalonia.CppInitializers.ps1" Pack="true" PackagePath="buildTransitive/StaticLink.Avalonia.CppInitializers.ps1" />
-        <None Include="../../External/NativeStatic/win-x64/native/**/*" Pack="true" PackagePath="static/win-x64/native/%(RecursiveDir)%(Filename)%(Extension)" />
-        <None Include="../../External/NativeStatic/win-x86/native/**/*" Pack="true" PackagePath="static/win-x86/native/%(RecursiveDir)%(Filename)%(Extension)" />
-        <None Include="../../External/NativeStatic/win-arm64/native/**/*" Pack="true" PackagePath="static/win-arm64/native/%(RecursiveDir)%(Filename)%(Extension)" />
-        <None Include="../../External/NativeStatic/linux-x64/native/**/*" Pack="true" PackagePath="static/linux-x64/native/%(RecursiveDir)%(Filename)%(Extension)" />
-        <None Include="../../External/NativeStatic/linux-arm64/native/**/*" Pack="true" PackagePath="static/linux-arm64/native/%(RecursiveDir)%(Filename)%(Extension)" />
-        <None Include="../../External/NativeStatic/linux-musl-x64/native/**/*" Pack="true" PackagePath="static/linux-musl-x64/native/%(RecursiveDir)%(Filename)%(Extension)" />
-        <None Include="../../External/NativeStatic/linux-musl-arm64/native/**/*" Pack="true" PackagePath="static/linux-musl-arm64/native/%(RecursiveDir)%(Filename)%(Extension)" />
-        <None Include="../../External/NativeStatic/osx-x64/native/**/*" Exclude="../../External/NativeStatic/osx-x64/native/libAvaloniaNative.a;../../External/NativeStatic/osx-x64/native/macos_font_preinit.o" Pack="true" PackagePath="static/osx-x64/native/%(RecursiveDir)%(Filename)%(Extension)" />
-        <None Include="../../External/NativeStatic/osx-arm64/native/**/*" Exclude="../../External/NativeStatic/osx-arm64/native/libAvaloniaNative.a;../../External/NativeStatic/osx-arm64/native/macos_font_preinit.o" Pack="true" PackagePath="static/osx-arm64/native/%(RecursiveDir)%(Filename)%(Extension)" />
+        <None Include="$(StaticLinkNativeArchivesRoot)/win-x64/native/**/*" Pack="true" PackagePath="static/win-x64/native/%(RecursiveDir)%(Filename)%(Extension)" />
+        <None Include="$(StaticLinkNativeArchivesRoot)/win-x86/native/**/*" Pack="true" PackagePath="static/win-x86/native/%(RecursiveDir)%(Filename)%(Extension)" />
+        <None Include="$(StaticLinkNativeArchivesRoot)/win-arm64/native/**/*" Pack="true" PackagePath="static/win-arm64/native/%(RecursiveDir)%(Filename)%(Extension)" />
+        <None Include="$(StaticLinkNativeArchivesRoot)/linux-x64/native/**/*" Pack="true" PackagePath="static/linux-x64/native/%(RecursiveDir)%(Filename)%(Extension)" />
+        <None Include="$(StaticLinkNativeArchivesRoot)/linux-arm64/native/**/*" Pack="true" PackagePath="static/linux-arm64/native/%(RecursiveDir)%(Filename)%(Extension)" />
+        <None Include="$(StaticLinkNativeArchivesRoot)/linux-musl-x64/native/**/*" Pack="true" PackagePath="static/linux-musl-x64/native/%(RecursiveDir)%(Filename)%(Extension)" />
+        <None Include="$(StaticLinkNativeArchivesRoot)/linux-musl-arm64/native/**/*" Pack="true" PackagePath="static/linux-musl-arm64/native/%(RecursiveDir)%(Filename)%(Extension)" />
+        <None Include="$(StaticLinkNativeArchivesRoot)/osx-x64/native/**/*" Exclude="$(StaticLinkNativeArchivesRoot)/osx-x64/native/libAvaloniaNative.a;$(StaticLinkNativeArchivesRoot)/osx-x64/native/macos_font_preinit.o" Pack="true" PackagePath="static/osx-x64/native/%(RecursiveDir)%(Filename)%(Extension)" />
+        <None Include="$(StaticLinkNativeArchivesRoot)/osx-arm64/native/**/*" Exclude="$(StaticLinkNativeArchivesRoot)/osx-arm64/native/libAvaloniaNative.a;$(StaticLinkNativeArchivesRoot)/osx-arm64/native/macos_font_preinit.o" Pack="true" PackagePath="static/osx-arm64/native/%(RecursiveDir)%(Filename)%(Extension)" />
     </ItemGroup>
 </Project>

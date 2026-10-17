@@ -1,8 +1,8 @@
 {
   "branches": [
     {
-      "major": 3,
-      "ref": "skia3",
+      "major": 4,
+      "ref": "skia4",
       "angle_branch": "7922",
       "revision": "1"
     }

@@ -9,7 +9,8 @@ import platform
 import shutil
 import subprocess
 import sys
-from skia_compat import archive, configure, parse_args, repair_xps, repair_skcms, repair_windows_keepalive
+from skia_compat import archive, configure, parse_args, repair_xps, repair_skcms, repair_windows_keepalive, repair_png_sdk, repair_zlib_sdk
+from angle_compat import add_objc_tools, disable_windows_cross_modules
 
 HERE = Path(__file__).resolve().parent
 
@@ -46,7 +47,6 @@ def main():
     p.add_argument('--output', type=Path, required=True)
     p.add_argument('--jobs', type=int, default=4)
     p.add_argument('--configure-only', action='store_true')
-    p.add_argument('--windows7-compat', action='store_true', help='SkiaSharp 3 Windows x64/x86 native compatibility profile')
     p.add_argument('--component', choices=['all', 'skia'], default='all', help='Build Skia alone when validating a new SkiaSharp release')
     a = p.parse_args()
     if a.sources_manifest:
@@ -63,12 +63,14 @@ def main():
     for name in ('skia', 'angle', 'angle_gn', 'sdk', 'work', 'output', 'availability_source', 'mingw_headers'):
         setattr(a, name, getattr(a, name).resolve())
     lock = json.loads((a.source_lock or HERE / 'sources.lock.json').read_text())
-    if a.windows7_compat and (a.target not in ('win-x64', 'win-x86') or not lock['skiasharp_version'].startswith('3.')):
-        p.error('--windows7-compat requires SkiaSharp 3 and win-x64 or win-x86')
     for src, key in ((a.skia, 'skia_revision'), (a.angle, 'angle_revision')):
         revision = subprocess.check_output(['git', '-C', str(src), 'rev-parse', 'HEAD'], text=True).strip()
         if revision != lock[key]:
             raise SystemExit(f'{src}: expected {lock[key]}, got {revision}; update the lock and revalidate first')
+    if lock.get('harfbuzz_revision'):
+        revision = subprocess.check_output(['git', '-C', str(a.skia / 'third_party/externals/harfbuzz'), 'rev-parse', 'HEAD'], text=True).strip()
+        if revision != lock['harfbuzz_revision']:
+            raise SystemExit('HarfBuzz source does not match the official Avalonia dependency lock')
     if 'skiasharp_build("SkiaSharp")' not in (a.skia / 'BUILD.gn').read_text():
         raise SystemExit('--skia must be the SkiaSharp-patched Skia source, not vanilla Google Skia')
     repair_windows_keepalive(a.skia)
@@ -86,8 +88,6 @@ def main():
         if path.is_file() and (path.suffix in ('.py', '.in', '.patch', '.c') or path.name in ('cross-toolchain.lock.json', 'linux-sysroots.lock.json', 'linux-sysroots-musl.lock.json')):
             recipe.update(str(path.relative_to(HERE)).encode())
             recipe.update(path.read_bytes())
-    if a.windows7_compat:
-        recipe.update(b'windows7-compat-v1')
     variant = hashlib.sha256((json.dumps(lock, sort_keys=True) + recipe.hexdigest()).encode()).hexdigest()[:16]
     shared = {'angle_revision': lock['angle_revision'], 'recipe': recipe.hexdigest(), 'toolchain': json.loads((HERE / 'cross-toolchain.lock.json').read_text())}
     angle_variant = hashlib.sha256(json.dumps(shared, sort_keys=True).encode()).hexdigest()[:16]
@@ -99,22 +99,29 @@ def main():
              '--output', output, '--sdk', a.sdk, '--mingw-headers', a.mingw_headers]
         if target.startswith('linux'):
             command += ['--linux-sysroot', a.linux_sysroots / target, '--linux-headers', a.linux_headers]
-        if a.windows7_compat and target == a.target:
-            command += ['--windows7-compat']
         run(command)
     config = json.loads((tools / 'toolchain.json').read_text())
     zig = config['zig']
     zig_lib = Path(json.loads(subprocess.check_output([zig, 'env'], text=True))['lib_dir'])
     print('skcms Clang compatibility:', repair_skcms(a.skia), flush=True)
+    print('libpng SDK compatibility:', repair_png_sdk(a.skia), flush=True)
+    print('zlib SDK compatibility:', repair_zlib_sdk(a.skia), flush=True)
     if windows:
         print('XPS compatibility:', repair_xps(a.skia), flush=True)
     # First apply the project's static ANGLE target patch if necessary.
     if 'angle_static_library("libANGLE_static")' not in (a.angle / 'BUILD.gn').read_text():
         patch(a.angle, 'angle-static-targets.patch')
-    for filename in ('BUILDCONFIG.gn-zig.patch', 'BUILD.gn-zig.patch',
-                     'sdk_info-linux.patch', 'find_sdk-linux.patch', 'gcc-toolchain-objc.patch'):
+    print('ANGLE Windows module defaults:', disable_windows_cross_modules(a.angle), flush=True)
+    for filename in ('BUILD.gn-zig.patch',
+                     'sdk_info-linux.patch', 'find_sdk-linux.patch'):
         patch(a.angle, filename)
-    run([sys.executable, a.angle / 'build/util/lastchange.py', '-o', a.angle / 'build/util/LASTCHANGE'], cwd=a.angle)
+    print('ANGLE Objective-C compiler tools:', add_objc_tools(a.angle), flush=True)
+    lastchange_env = os.environ.copy()
+    depot_tools = Path('/opt/depot_tools')
+    if not (depot_tools / 'gclient_utils.py').is_file():
+        raise SystemExit('The pinned image must supply depot_tools for Chromium source metadata')
+    lastchange_env['PYTHONPATH'] = str(depot_tools) + os.pathsep + lastchange_env.get('PYTHONPATH', '')
+    run([sys.executable, a.angle / 'build/util/lastchange.py', '-o', a.angle / 'build/util/LASTCHANGE'], cwd=a.angle, env=lastchange_env)
     # Separate runtime paths prevent architectures from sharing an incompatible cache.
     clang = tools / 'clang'
     runtime = clang / 'lib/clang/19/lib' / ('windows' if windows else ('darwin' if mac else 'linux')) / (
@@ -241,7 +248,8 @@ def main():
          '--angle', a.angle, '--libraries', a.output, '--output', a.output / 'link-tests', '--component', a.component])
     if a.target == 'win-x86':
         run([sys.executable, HERE / 'x86-thunks.py', '--source', a.skia.parent.parent,
-             '--toolchain', tools, '--libraries', a.output])
+             '--toolchain', tools, '--libraries', a.output,
+             '--harfbuzz-revision', lock.get('harfbuzzsharp_revision', 'HEAD')])
     run([sys.executable, HERE / 'optimize-archives.py', '--directory', a.output / 'zig-runtime', '--runtime'])
     manifest['archives'] = {('lib' + name + '.a'): hashlib.sha256((a.output / ('lib' + name + '.a')).read_bytes()).hexdigest() for _, name in files}
     manifest['release_archive_optimization'] = json.loads((a.output / 'archive-size-report.json').read_text())

@@ -3,6 +3,9 @@ name: pinned-zig-toolchain-image
 on:
   workflow_call:
     inputs:
+      image:
+        type: string
+        default: ''
       validation_rids:
         type: string
         default: '[]'
@@ -35,12 +38,20 @@ jobs:
           ACTOR: ${{ github.actor }}
           REPOSITORY: ${{ github.repository }}
           VALIDATION_RIDS: ${{ inputs.validation_rids || '[]' }}
+          REQUESTED_IMAGE: ${{ inputs.image }}
           BASE_HASH: ${{ hashFiles('build/linux-toolchain/Dockerfile') }}
           RECIPE_HASH: ${{ hashFiles('build/linux-toolchain/Dockerfile*', 'build/linux-toolchain/fetch-linux-sysroots.py', 'build/linux-toolchain/linux-sysroots*.lock.json', 'build/linux-toolchain/zig-cross.py', 'build/linux-toolchain/validate-toolchain.py', 'build/linux-toolchain/probe-cross.py') }}
         run: |
           set -euo pipefail
           printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
           repository="ghcr.io/${REPOSITORY,,}-zig"
+          if [ -n "$REQUESTED_IMAGE" ]; then
+            case "$REQUESTED_IMAGE" in "$repository"@sha256:*) ;; *) echo 'Use an immutable image from this repository' >&2; exit 1 ;; esac
+            [[ "${REQUESTED_IMAGE##*@sha256:}" =~ ^[0-9a-f]{64}$ ]]
+            image="$REQUESTED_IMAGE"
+            docker pull "$image"
+            built_image=false
+          else
           image="$repository:recipe-$RECIPE_HASH"
           base="$repository:debian12-$BASE_HASH"
           # A registry/network/authentication failure is not a missing recipe.
@@ -80,6 +91,7 @@ jobs:
               -f build/linux-toolchain/Dockerfile.cross-probe \
               -t "$image" build/linux-toolchain
             built_image=true
+          fi
           fi
           mkdir -p artifacts/toolchain-environment
           docker run --rm --user "$(id -u):$(id -g)" \

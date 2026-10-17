@@ -73,13 +73,6 @@ def main():
         print(result.stdout, end='')
         print(result.stderr, end='')
         result.check_returncode()
-        if config.get('windows7_compat'):
-            imports = subprocess.check_output(['llvm-readobj-16', '--coff-imports', str(a.output / ('smoke-' + name + '.exe'))], text=True)
-            forbidden = ('WaitOnAddress', 'WakeByAddressSingle', 'WakeByAddressAll', 'GetSystemTimePreciseAsFileTime', 'CreateFile2', 'SetThreadDescription', 'GetTempPath2W', 'GetTempPath2A')
-            found = [symbol for symbol in forbidden if re.search(r'\bSymbol: ' + symbol + r'\b', imports)]
-            if found:
-                raise SystemExit('Win7-incompatible direct imports: ' + ', '.join(found))
-            (a.output / ('smoke-' + name + '-imports.txt')).write_text(imports)
         # Keep the exact runtime archives chosen by this Zig target. AOT consumes
         # these without substituting the consumer machine's C++ toolchain.
         import shlex, shutil

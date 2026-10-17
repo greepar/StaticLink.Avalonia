@@ -1,0 +1,21 @@
+
+Microsoft Windows [Version 6.1.7601]
+SHA256 hash of file AvaloniaStaticLinkSmoke.exe:
+88 ee 1f 95 bf 6e 98 20 1b 74 f7 1d 6f a3 49 ce 0a a0 1f 93 67 c5 3c d5 22 13 58 5a 4d 5a 16 c4
+CertUtil: -hashfile command completed successfully.
+RUN=1 
+STATICLINK_SMOKE_READY=opengl;BACKEND=OpenGL
+EXIT=0 
+RUN=2 
+STATICLINK_SMOKE_READY=opengl;BACKEND=OpenGL
+EXIT=0 
+RUN=3 
+STATICLINK_SMOKE_READY=opengl;BACKEND=OpenGL
+EXIT=0 
+RUN=4 
+STATICLINK_SMOKE_READY=opengl;BACKEND=OpenGL
+EXIT=0 
+RUN=5 
+STATICLINK_SMOKE_READY=opengl;BACKEND=OpenGL
+EXIT=0 
+DONE 

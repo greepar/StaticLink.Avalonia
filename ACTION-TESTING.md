@@ -1,38 +1,31 @@
-# Runtime-gated graphics validation
+# Official Avalonia validation
 
-Daily graphics releases are enabled on main. All nine Avalonia runtime tests
-and macOS Metal must succeed before NuGet publication. See
-[RUNTIME-VALIDATION.md](RUNTIME-VALIDATION.md) for completed validation runs.
-The AvaloniaNative track remains independently managed.
+The stable release pipeline is `nuget-static-graphics.yml`. Select
+`avalonia_version=11.3.22` or `avalonia_version=12.1.4` and leave publication
+inputs false to validate without uploading NuGet packages.
 
-Before release builds, run nuget-static-graphics.yml on skia4 with
-environment_only=true. This checks the actual container's Python/depot_tools,
-.NET 8/10, SDKs, sysroots, and C/C++ compilation plus C executable linking for
-all nine RIDs. Download toolchain-environment-validation to inspect the report.
-The same environment gate runs before every graphics and native build and
-must pass before the toolchain image is published for release compilation.
+Every native archive is built with Zig in the pinned Linux toolchain image,
+including the matching Avalonia.Native archives for both macOS architectures.
+The candidate packages are packed locally and then used by all nine NativeAOT
+application runtime jobs. A rendered-frame marker and normal exit are required.
+Avalonia 12 additionally requires the actual Metal backend. Failed, cancelled,
+or skipped required checks block publication.
 
-- skia3: nuget-static-graphics.yml; latest stable SkiaSharp 3.
-- skia4: nuget-static-graphics.yml; latest stable SkiaSharp 4.
-- avalonia-native: nuget-avalonia-native.yml; latest stable Avalonia 11 and 12.
+The same package ID has stable versions `11.3.22.1` and `12.1.4.1`. Source
+locks come from official Avalonia, SkiaSharp, HarfBuzzSharp, and ANGLE packages.
+See [RUNTIME-VALIDATION.md](RUNTIME-VALIDATION.md) for evidence and the local
+Lima/Podman validation command.
 
-Download staticlink-avalonia-nuget and avalonia-smoke-<RID> from each graphics run.
-Download staticlink-avalonia-native-<version> and
-avalonia-native-smoke-<AvaloniaVersion>-<RID> from the native run.
-Native archives and source locks are also retained as Actions artifacts.
+Download `staticlink-avalonia-nuget`, `graphics-release-source-lock`, and
+`avalonia-smoke-<RID>` artifacts from the run. The NuGet artifact includes the
+matching `StaticLink.Avalonia.Native` candidate. An uploaded artifact alone does
+not establish success; check the `runtime-verified` job.
 
-Graphics macOS smoke tests use the already published AvaloniaNative revision 1
-by default, so the graphics builds do not require the experimental native
-revision 2 to be published. The native branch validates its own local revision 2
-package separately. To test both experimental packages together, put both
-downloaded packages in a local NuGet feed and reference their exact versions.
+Daily official release validation remains disabled until these candidates pass
+local and Actions validation. Manual daily dispatch defaults to validation
+without publication. Scheduled validation will run both version lines every day
+at 02:20 UTC (10:20 Asia/Singapore) and skip duplicate NuGet uploads.
 
-Smoke executables are retained even if a later runtime validation fails.
-An artifact is not evidence that all validation gates passed; check job results.
-
-The daily-native-release workflow on main checks skia3 and skia4 every day at
-02:20 UTC (10:20 Asia/Singapore), as well as supporting manual dispatch.
-Use force_build=true to rebuild published versions. Existing upstream/ANGLE
-versions are otherwise skipped. New candidates request NuGet publication, but
-runtime-verified blocks it if a required check fails, is cancelled, or is skipped.
-The NuGet Trusted Publishing policy must allow nuget-static-graphics.yml.
+Historical `skia3` and `skia4` branch workflows remain available through the
+SkiaSharp profile input. The independent `avalonia-native` branch and its daily
+artifact checks remain separate from the official graphics release pipeline.

@@ -171,8 +171,26 @@ sync_skiasharp() {
   local src="$WORK_DIR/SkiaSharp-$SKIASHARP_VERSION"
   local revision="${SKIASHARP_REVISION:-release/$SKIASHARP_VERSION}"
   if [[ ! -d "$src/.git" ]]; then
-    git init "$src" >&2 || return $?
-    git -C "$src" remote add origin https://github.com/mono/SkiaSharp.git || return $?
+    # Profiles may share Skia while locking different managed/native companions.
+    # Reuse commit objects locally, while checking out a clean pinned tree.
+    if [[ "$revision" =~ ^[0-9a-f]{40}$ ]]; then
+      local candidate
+      for candidate in "${WORK_DIR%/*}"/*/"SkiaSharp-$SKIASHARP_VERSION"; do
+        [[ -d "$candidate/.git" ]] || continue
+        [[ "$(git -C "$candidate" rev-parse HEAD 2>/dev/null)" == "$revision" ]] || continue
+        git clone --shared "$candidate" "$src" >&2 || return $?
+        git -C "$src" remote set-url origin https://github.com/mono/SkiaSharp.git || return $?
+        if [[ -e "$candidate/externals/skia/.git" && ! -e "$src/externals/skia/.git" ]]; then
+          git clone --shared "$candidate/externals/skia" "$src/externals/skia" >&2 || return $?
+          git -C "$src/externals/skia" remote set-url origin "$(git -C "$candidate/externals/skia" remote get-url origin)" || return $?
+        fi
+        break
+      done
+    fi
+    if [[ ! -d "$src/.git" ]]; then
+      git init "$src" >&2 || return $?
+      git -C "$src" remote add origin https://github.com/mono/SkiaSharp.git || return $?
+    fi
   fi
   local current
   current="$(git -C "$src" rev-parse HEAD 2>/dev/null || true)"
@@ -290,7 +308,7 @@ sync_angle() {
   local revision="${ANGLE_REVISION:-chromium/$ANGLE_BRANCH}"
   if [[ ! -d "$src/.git" ]]; then
     git init "$src" >&2 || return $?
-    git -C "$src" remote add origin https://github.com/google/angle.git || return $?
+    git -C "$src" remote add origin "${ANGLE_REPOSITORY:-https://github.com/google/angle.git}" || return $?
   fi
   local current
   current="$(git -C "$src" rev-parse HEAD 2>/dev/null || true)"

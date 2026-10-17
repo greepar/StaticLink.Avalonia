@@ -1,0 +1,22 @@
+{
+  "avalonia_version": "12.1.4",
+  "avalonia_revision": "2d79ba55fae1b1e71c69f93a668080c9029e6a31",
+  "package_version": "3.119.4.1",
+  "skiasharp_version": "3.119.4",
+  "skiasharp_revision": "f568ac94dd768ef9a2f593537cfde2dd0d348ef5",
+  "skia_revision": "7dbfc07dd33181f84e0958afb7ee805c6c769f0b",
+  "harfbuzzsharp_version": "8.3.1.3",
+  "harfbuzz_revision": "2b3631a866b3077d9d675caa4ec9010b342b5a7c",
+  "angle_package_version": "2.1.27548.20260419",
+  "angle_branch": "avalonia-12.1.4",
+  "angle_repository": "https://github.com/AvaloniaUI/angle.git",
+  "angle_revision": "1c89805903c1482166356d3b950d474973180e61",
+  "angle_project_patch": null,
+  "official_package_sha256": {
+    "skiasharp": "e32a449d31945c0b9d169eb5bc676e1e3f589aab69888e49d703fdc1c384c176",
+    "harfbuzz": "58d51098b595152c01293f71ed47614b3f53d8503bc226efc23b8f7b0ff7c943",
+    "angle": "76d67901097e9173d155efc4c2b7d2c8e3122f2c2e0415028eb0c88478a386f9",
+    "harfbuzz_managed": "ffe644863a4eb3c078b4c3f0def0f2b90a861991c9116bf2dd668a31a0f09ab5"
+  },
+  "harfbuzzsharp_revision": "2888c737ad016d584c74525e2d35db5097ea8576"
+}
