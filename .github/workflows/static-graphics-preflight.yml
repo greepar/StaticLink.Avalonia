@@ -52,6 +52,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          if [ -f build/skia-daily.json ]; then
+            baseline=$(python3 -c 'import json; print(json.load(open("build/skia-daily.json"))["avalonia_version"])')
+            if [ -n "$REQUESTED_AVALONIA_VERSION" ] && [ "$REQUESTED_AVALONIA_VERSION" != "$baseline" ]; then
+              echo "Daily builds use their explicitly validated Avalonia runtime baseline." >&2
+              exit 1
+            fi
+            python3 scripts/resolve-skia-daily.py --version "$REQUESTED_VERSION"
+            python3 scripts/read-avalonia-profile.py --avalonia-version "$baseline" --github-output --release-lock
+            exit 0
+          fi
           if [ -n "$REQUESTED_AVALONIA_VERSION" ]; then
             if [ -n "$REQUESTED_VERSION" ]; then
               echo "Select either an official Avalonia profile or a historical SkiaSharp profile." >&2
@@ -101,7 +111,7 @@ jobs:
           PY
 
       - name: Validate upstream refs and ANGLE patch
-        if: ${{ inputs.avalonia_version == '' }}
+        if: ${{ inputs.avalonia_version == '' && steps.versions.outputs.avalonia_version == '' }}
         env:
           SKIASHARP_VERSION: ${{ steps.versions.outputs.skiasharp_version }}
           ANGLE_BRANCH: ${{ steps.versions.outputs.angle_branch }}
@@ -123,4 +133,6 @@ jobs:
       - name: Compile smoke project
         env:
           AVALONIA_VERSION: ${{ steps.versions.outputs.avalonia_version || '11.3.14' }}
-        run: dotnet build Smoke/AvaloniaStaticLinkSmoke/AvaloniaStaticLinkSmoke.csproj -c Release -p:PublishAot=false -p:AvaloniaVersion="$AVALONIA_VERSION"
+        run: |
+          mkdir -p artifacts
+          dotnet build Smoke/AvaloniaStaticLinkSmoke/AvaloniaStaticLinkSmoke.csproj -c Release -p:PublishAot=false -p:AvaloniaVersion="$AVALONIA_VERSION" -bl:artifacts/preflight-{}.binlog

@@ -20,11 +20,20 @@ def main():
         parser.error('Use a stable Avalonia 11 or 12 version')
     path = ROOT / 'build/avalonia-profiles' / (args.avalonia_version + '.json')
     lock = json.loads(path.read_text())
-    if lock['avalonia_version'] != args.avalonia_version or not re.fullmatch(
-            # Retain legacy Avalonia-numbered profiles during migration.
+    if lock.get('release_channel') == 'daily':
+        config = json.loads((ROOT / 'build/skia-daily.json').read_text())
+        if (config['skiasharp_major'] != lock['skiasharp_major'] or
+                config['avalonia_version'] != args.avalonia_version or
+                not lock['skiasharp_version'].startswith(str(config['skiasharp_major']) + '.') or
+                not re.fullmatch(re.escape(lock['skiasharp_version']) +
+                                 r'-preview\.\d{8}\.\d+\.\d+', lock['package_version'])):
+            raise SystemExit('Daily package must match its branch major and preview version policy')
+    elif not re.fullmatch(
             '(?:' + re.escape(lock['skiasharp_version']) + '|' +
             re.escape(args.avalonia_version) + r')\.[1-9]\d*', lock['package_version']):
         raise SystemExit('Profile and stable package version do not match')
+    if lock['avalonia_version'] != args.avalonia_version:
+        raise SystemExit('Profile and Avalonia version do not match')
     for key in ('avalonia_revision', 'skiasharp_revision', 'skia_revision',
                 'harfbuzz_revision', 'harfbuzzsharp_revision', 'angle_revision'):
         if not re.fullmatch(r'[0-9a-f]{40}', lock[key]):
