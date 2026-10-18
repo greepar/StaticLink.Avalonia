@@ -2,6 +2,25 @@
 
 Static native libraries for Avalonia single-file NativeAOT publishing.
 
+## Repository branches
+
+`main` contains documentation and daily dispatchers. Build sources, package
+projects, smoke applications and validation records live on the corresponding
+release branches:
+
+| Branch | Purpose |
+| --- | --- |
+| [`skia2`](https://github.com/greepar/StaticLink.Avalonia/tree/skia2) | Stable SkiaSharp 2 graphics package |
+| [`skia3`](https://github.com/greepar/StaticLink.Avalonia/tree/skia3) | Stable SkiaSharp 3 graphics package |
+| [`skia3-daily`](https://github.com/greepar/StaticLink.Avalonia/tree/skia3-daily) | SkiaSharp 3 daily builds and validation |
+| [`skia4-daily`](https://github.com/greepar/StaticLink.Avalonia/tree/skia4-daily) | SkiaSharp 4 daily builds and validation |
+| [`avalonia-native`](https://github.com/greepar/StaticLink.Avalonia/tree/avalonia-native) | Separate macOS Avalonia.Native builds |
+
+For manual Actions builds, select the corresponding branch under **Run workflow**.
+The two build workflow files on `main` only keep those entry points registered;
+running them on `main` reports the branch to select and does not build or publish.
+The daily dispatchers select their release branches automatically.
+
 ## Install
 
 Choose the package line matching the SkiaSharp version used by your application.
