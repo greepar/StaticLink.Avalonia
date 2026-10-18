@@ -1,3 +1,52 @@
+# Daily version regression validation — 2026-10-18
+
+All five complete Actions validations succeeded with the current official ANGLE
+`2.1.27548.20260419`, using the pinned Zig toolchain for all nine native targets.
+
+| SkiaSharp | HarfBuzzSharp | Avalonia runtime baseline | Native targets | Window/Metal jobs | Actions |
+| --- | --- | --- | --- | --- | --- |
+| 3.119.2 | 8.3.1.3 | 11.3.22 | 9/9 | 9 passed | [39070382341](https://github.com/greepar/StaticLink.Avalonia/actions/runs/39070382341) |
+| 3.119.4 | 8.3.1.5 | 12.1.4 | 9/9 | 10 passed | [39070384845](https://github.com/greepar/StaticLink.Avalonia/actions/runs/39070384845) |
+| 4.150.1 | 14.2.1.1 | 12.1.4 | 9/9 | 10 passed | [39070387346](https://github.com/greepar/StaticLink.Avalonia/actions/runs/39070387346) |
+| 4.150.5 | 14.2.1.5 | 12.1.4 | 9/9 | 10 passed | [39070390442](https://github.com/greepar/StaticLink.Avalonia/actions/runs/39070390442) |
+| 4.153.1 | 14.2.1.301 | 12.1.4 | 9/9 | 10 passed | [39070666914](https://github.com/greepar/StaticLink.Avalonia/actions/runs/39070666914) |
+
+The matrix passed 45 native build/link jobs and 49 Avalonia runtime jobs.
+SkiaSharp 3.119.2 uses Avalonia 11.3.22, with OpenGL/software and its intended
+Metal skip. The four Avalonia 12.1.4 cases include a required real Metal check.
+The SkiaSharp 3.119.4 musl ARM64 build was interrupted by a GitHub runner shutdown;
+rerunning the failed jobs succeeded without compiler/source changes.
+
+macOS x64 validation uses an Intel runner; ARM64 uses Apple Silicon. Linux musl
+validation uses same-architecture Alpine containers. Windows x86 uses WoW64.
+Windows 7 runtime is outside this hosted matrix.
+
+The two latest candidates were published from the exact validated artifacts;
+older versions were validation-only. The publication path checks source run/jobs,
+package identity, commit, dependencies and all nine native source manifests before
+NuGet authentication.
+
+| Published NuGet version | Publication Actions |
+| --- | --- |
+| [3.119.4-2.1.27548.20260419.daily.139.1](https://www.nuget.org/packages/StaticLink.Avalonia/3.119.4-2.1.27548.20260419.daily.139.1) | [39075079872](https://github.com/greepar/StaticLink.Avalonia/actions/runs/39075079872) |
+| [4.153.1-2.1.27548.20260419.daily.143.1](https://www.nuget.org/packages/StaticLink.Avalonia/4.153.1-2.1.27548.20260419.daily.143.1) | [39075082431](https://github.com/greepar/StaticLink.Avalonia/actions/runs/39075082431) |
+
+Both versions were verified against the public nuget.org nuspec after upload:
+only exact SkiaSharp and HarfBuzzSharp dependencies; no Avalonia.Desktop or
+StaticLink.Avalonia.Native dependency. Repository commits match the validated
+candidate source commits.
+
+Automatic daily checks are enabled at 02:20 UTC (10:20 Asia/Singapore).
+Post-publication check-only runs for both branches returned `skip` because the
+latest SkiaSharp/official ANGLE pairs are already published. New pairs must pass
+the native and runtime gates before publication.
+Current policy and `daily` version format are documented in [DAILY.md](DAILY.md).
+Machine-readable evidence: [regression matrix](build/daily-validation/regression-matrix-2026-10-18.json).
+
+The historical validation records below describe earlier snapshots and policies.
+
+---
+
 # Validated graphics builds
 
 Full Actions validation completed on 2026-10-13 (Asia/Singapore):
