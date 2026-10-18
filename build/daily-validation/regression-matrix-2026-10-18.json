@@ -1,0 +1,148 @@
+{
+  "cases": [
+    {
+      "branch": "skia3-daily",
+      "skiasharp": "3.119.2",
+      "avalonia": "11.3.22",
+      "angle": "2.1.27548.20260419",
+      "publish_to_nuget": false,
+      "url": "https://github.com/greepar/StaticLink.Avalonia/actions/runs/39070382341",
+      "run_id": 39070382341,
+      "status": "completed",
+      "conclusion": "success",
+      "native_passed": 9,
+      "runtime_passed": 9,
+      "failures": [],
+      "native_active": 0
+    },
+    {
+      "branch": "skia3-daily",
+      "skiasharp": "3.119.4",
+      "avalonia": "12.1.4",
+      "angle": "2.1.27548.20260419",
+      "publish_to_nuget": false,
+      "url": "https://github.com/greepar/StaticLink.Avalonia/actions/runs/39070384845",
+      "run_id": 39070384845,
+      "status": "completed",
+      "conclusion": "success",
+      "native_passed": 9,
+      "runtime_passed": 10,
+      "failures": [],
+      "native_active": 0,
+      "infrastructure_retry": {
+        "failed_job": 117508717412,
+        "reason": "GitHub runner shutdown during compilation",
+        "method": "rerun failed jobs",
+        "attempt": 2
+      },
+      "candidate_version": "3.119.4-2.1.27548.20260419.daily.139.1"
+    },
+    {
+      "branch": "skia4-daily",
+      "skiasharp": "4.150.1",
+      "avalonia": "12.1.4",
+      "angle": "2.1.27548.20260419",
+      "publish_to_nuget": false,
+      "url": "https://github.com/greepar/StaticLink.Avalonia/actions/runs/39070387346",
+      "run_id": 39070387346,
+      "status": "completed",
+      "conclusion": "success",
+      "native_passed": 9,
+      "runtime_passed": 10,
+      "failures": [],
+      "native_active": 0
+    },
+    {
+      "branch": "skia4-daily",
+      "skiasharp": "4.150.5",
+      "avalonia": "12.1.4",
+      "angle": "2.1.27548.20260419",
+      "publish_to_nuget": false,
+      "url": "https://github.com/greepar/StaticLink.Avalonia/actions/runs/39070390442",
+      "run_id": 39070390442,
+      "status": "completed",
+      "conclusion": "success",
+      "native_passed": 9,
+      "runtime_passed": 10,
+      "failures": [],
+      "native_active": 0
+    },
+    {
+      "branch": "skia4-daily",
+      "skiasharp": "4.153.1",
+      "avalonia": "12.1.4",
+      "angle": "2.1.27548.20260419",
+      "publish_to_nuget": false,
+      "url": "https://github.com/greepar/StaticLink.Avalonia/actions/runs/39070666914",
+      "run_id": 39070666914,
+      "replaced_run_id": 39070393630,
+      "status": "completed",
+      "conclusion": "success",
+      "native_passed": 9,
+      "runtime_passed": 10,
+      "failures": [],
+      "native_active": 0
+    }
+  ],
+  "checked_at": "2026-10-17T22:25:35.136268+00:00",
+  "all_done": true,
+  "all_passed": true,
+  "publications": [
+    {
+      "branch": "skia3-daily",
+      "source_run": 39070384845,
+      "publish_run": 39075079872,
+      "version": "3.119.4-2.1.27548.20260419.daily.139.1",
+      "nuget_verified": true,
+      "nuget_url": "https://www.nuget.org/packages/StaticLink.Avalonia/3.119.4-2.1.27548.20260419.daily.139.1",
+      "verified_at": "2026-10-18T02:07:14.581866+00:00",
+      "dependencies": {
+        "HarfBuzzSharp": "[8.3.1.5]",
+        "SkiaSharp": "[3.119.4]"
+      },
+      "repository_commit": "a309eec890b462b4aac900f528c3078dff708554"
+    },
+    {
+      "branch": "skia4-daily",
+      "source_run": 39070666914,
+      "publish_run": 39075082431,
+      "version": "4.153.1-2.1.27548.20260419.daily.143.1",
+      "nuget_verified": true,
+      "nuget_url": "https://www.nuget.org/packages/StaticLink.Avalonia/4.153.1-2.1.27548.20260419.daily.143.1",
+      "verified_at": "2026-10-18T02:07:15.716571+00:00",
+      "dependencies": {
+        "HarfBuzzSharp": "[14.2.1.301]",
+        "SkiaSharp": "[4.153.1]"
+      },
+      "repository_commit": "1721739920c20bf566bd9b1cb5b14bfa3bfc174f"
+    }
+  ],
+  "daily_schedule": {
+    "workflow": "daily-native-release.yml",
+    "state": "active",
+    "cron": "20 2 * * *",
+    "timezone_description": "10:20 Asia/Singapore"
+  },
+  "unchanged_upstream_checks": [
+    {
+      "branch": "skia3-daily",
+      "skiasharp_version": "3.119.4",
+      "angle_version": "2.1.27548.20260419",
+      "angle_revision": "1c89805903c1482166356d3b950d474973180e61",
+      "published_package": "3.119.4.1",
+      "publish_to_nuget": false,
+      "action": "skip",
+      "reason": "This SkiaSharp/ANGLE pair already has a published StaticLink package"
+    },
+    {
+      "branch": "skia4-daily",
+      "skiasharp_version": "4.153.1",
+      "angle_version": "2.1.27548.20260419",
+      "angle_revision": "1c89805903c1482166356d3b950d474973180e61",
+      "published_package": "4.153.1-2.1.27548.20260419.daily.143.1",
+      "publish_to_nuget": false,
+      "action": "skip",
+      "reason": "This SkiaSharp/ANGLE pair already has a published StaticLink package"
+    }
+  ]
+}
