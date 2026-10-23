@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       force_build:
-        description: Rebuild even if matching successful Actions artifacts exist
+        description: Rebuild even if the package is already published on NuGet
         type: boolean
         default: false
 
@@ -44,9 +44,6 @@ jobs:
           branch = os.environ['NATIVE_BRANCH']
           major = int(os.environ['AVALONIA_MAJOR'])
 
-          def api(endpoint):
-              return json.loads(subprocess.check_output(['gh', 'api', endpoint], text=True))
-
           def summary(message):
               print(message, flush=True)
               with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as output:
@@ -63,31 +60,21 @@ jobs:
               raise SystemExit(f'No stable Avalonia {major} version found')
           version = max(candidates, key=lambda value: tuple(map(int, value.split('.'))))
           package_version = version + '.' + os.environ['PACKAGE_REVISION']
-          artifact_name = 'staticlink-avalonia-native-' + package_version
-          head_sha = api(f'repos/{repository}/branches/{branch}')['commit']['sha']
-          if os.environ['FORCE_BUILD'] != 'true':
-              already_validated = False
-              runs = api(f'repos/{repository}/actions/workflows/nuget-avalonia-native.yml/runs'
-                         f'?branch={branch}&status=success&per_page=100')['workflow_runs']
-              for run in runs:
-                  if run['head_sha'] != head_sha or run['conclusion'] != 'success':
-                      continue
-                  artifacts = api(f"repos/{repository}/actions/runs/{run['id']}/artifacts?per_page=100")['artifacts']
-                  if any(artifact['name'] == artifact_name and not artifact['expired']
-                         for artifact in artifacts):
-                      summary(f"Already validated {package_version}: {run['html_url']}")
-                      already_validated = True
-                      break
-              if already_validated:
-                  raise SystemExit(0)
+          published = json.loads(subprocess.check_output([
+              'curl', '--fail', '--silent', '--show-error', '--location', '--retry', '3',
+              'https://api.nuget.org/v3-flatcontainer/staticlink.avalonia.native/index.json',
+          ], text=True))['versions']
+          if os.environ['FORCE_BUILD'] != 'true' and package_version in published:
+              summary(f'Already published on NuGet: {package_version}')
+              raise SystemExit(0)
 
           payload = json.dumps({'ref': branch, 'inputs': {
-              'avalonia_version': version, 'force_build': True, 'publish_to_nuget': False,
+              'avalonia_version': version, 'force_build': True, 'publish_to_nuget': True,
           }})
           subprocess.run([
               'gh', 'api', '--method', 'POST',
               f'repos/{repository}/actions/workflows/nuget-avalonia-native.yml/dispatches',
               '--input', '-',
           ], input=payload, text=True, check=True)
-          summary(f'Dispatched {package_version} on {branch}; Actions artifacts only, no NuGet publication.')
+          summary(f'Dispatched {package_version} on {branch}; NuGet publication enabled after smoke tests.')
           PY
