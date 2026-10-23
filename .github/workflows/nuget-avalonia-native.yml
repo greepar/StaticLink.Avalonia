@@ -67,7 +67,7 @@ jobs:
               exit 1
             fi
 
-            package_version="$avalonia_version.2"
+            package_version="$avalonia_version.1"
             package_url="https://api.nuget.org/v3-flatcontainer/staticlink.avalonia.native/$package_version/staticlink.avalonia.native.$package_version.nupkg"
             status=$(curl --retry 3 --silent --show-error --location --output /dev/null --write-out '%{http_code}' "$package_url")
             if [ "$status" != 200 ] && [ "$status" != 404 ]; then
