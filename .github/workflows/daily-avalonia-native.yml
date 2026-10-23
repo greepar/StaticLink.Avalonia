@@ -32,7 +32,7 @@ jobs:
           AVALONIA_MAJOR: ${{ matrix.major }}
           FORCE_BUILD: ${{ inputs.force_build }}
           NATIVE_BRANCH: avalonia-native
-          PACKAGE_REVISION: '2'
+          PACKAGE_REVISION: '1'
         run: |
           python3 - <<'PY'
           import json
@@ -69,7 +69,7 @@ jobs:
               raise SystemExit(0)
 
           payload = json.dumps({'ref': branch, 'inputs': {
-              'avalonia_version': version, 'force_build': True, 'publish_to_nuget': True,
+              'avalonia_version': version, 'force_build': os.environ['FORCE_BUILD'] == 'true', 'publish_to_nuget': True,
           }})
           subprocess.run([
               'gh', 'api', '--method', 'POST',
