@@ -5,21 +5,33 @@ from pathlib import Path
 p=argparse.ArgumentParser();p.add_argument('--source',type=Path,required=True);p.add_argument('--toolchain',type=Path,required=True);p.add_argument('--libraries',type=Path,required=True);p.add_argument('--harfbuzz-revision',default='HEAD');a=p.parse_args()
 def binding(component, revision):
  paths = subprocess.check_output(['git', '-C', str(a.source), 'ls-tree', '-r', '--name-only', revision], text=True).splitlines()
- matches = [path for path in paths if path.startswith('binding/') and Path(path).name == component + 'Api.generated.cs']
- if len(matches) != 1:
-  raise SystemExit('Expected exactly one pinned ' + component + ' generated binding at ' + revision + ': ' + str(matches))
- return subprocess.check_output(['git', '-C', str(a.source), 'show', revision + ':' + matches[0]], text=True)
+ root = 'binding/' + component + 'Sharp/'
+ legacy = [path for path in paths if path.startswith(root) and Path(path).name == component + 'Api.generated.cs']
+ split = sorted(path for path in paths if path.startswith(root + 'Generated/')
+                and Path(path).name.startswith(component + 'Api_') and path.endswith('.generated.cs'))
+ # SkiaSharp 4.155 splits the generated API by native header. Keep reading
+ # the pinned Git objects rather than potentially modified working files.
+ if len(legacy) == 1 and not split:
+  matches = legacy
+ elif split and not legacy:
+  # Struct layouts moved to their own generated files too; include them so
+  # by-value arguments retain their full x86 stack size.
+  matches = sorted(path for path in paths if path.startswith(root + 'Generated/') and path.endswith('.generated.cs'))
+ else:
+  raise SystemExit('Expected one legacy binding or split generated bindings for pinned ' + component + ' at ' + revision + ': ' + str(legacy + split))
+ return '\n'.join(subprocess.check_output(['git', '-C', str(a.source), 'show', revision + ':' + path], text=True) for path in matches)
 text = binding('Skia', 'HEAD') + '\n' + binding('HarfBuzz', a.harfbuzz_revision)
 structs={}
-# Generated structs use public fields; omit properties and methods.
-for match in re.finditer(r'\bstruct\s+(\w+)\s*\{',text):
+# New generated structs implement interfaces and use private readonly fields.
+# Restrict field matching to declarations, omitting properties and methods.
+for match in re.finditer(r'\bstruct\s+(\w+)\s*(?::[^\{]+)?\{',text):
  pos=match.end();depth=1;end=pos
  while depth:
   if text[end]=='{':depth+=1
   if text[end]=='}':depth-=1
   end+=1
  block=text[pos:end-1]
- structs[match[1]]=[m[1].strip() for m in re.finditer(r'^\s*public\s+(.+?)\s+\w+;\s*$',block,re.M)]
+ structs[match[1]]=[m[1].strip() for m in re.finditer(r'^\s*(?:public|private|internal)\s+(?:readonly\s+)?([\w.*]+)\s+\w+;\s*$',block,re.M)]
 sizes={}
 def layout(t):
  t=re.sub(r'\b(?:ref|out|in|readonly)\b','',t).strip()
