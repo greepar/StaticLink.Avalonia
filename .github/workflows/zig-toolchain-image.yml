@@ -23,7 +23,7 @@ jobs:
     outputs:
       image: ${{ steps.publish.outputs.image }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Publish or reuse exact toolchain image
         id: publish
         env:
@@ -71,7 +71,7 @@ jobs:
           echo "Toolchain: $digest" >> "$GITHUB_STEP_SUMMARY"
       - name: Upload environment validation report
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: toolchain-environment-validation
           path: artifacts/toolchain-environment/
