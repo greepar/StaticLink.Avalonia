@@ -113,7 +113,7 @@ jobs:
         rid: [osx-x64, osx-arm64]
         include:
           - rid: osx-x64
-            runner: macos-14
+            runner: macos-15-intel
           - rid: osx-arm64
             runner: macos-15
     runs-on: ubuntu-24.04
@@ -219,7 +219,7 @@ jobs:
         rid: [osx-x64, osx-arm64]
         include:
           - rid: osx-x64
-            runner: macos-14
+            runner: macos-15-intel
           - rid: osx-arm64
             runner: macos-15
     runs-on: ${{ matrix.runner }}
