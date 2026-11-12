@@ -20,7 +20,7 @@ on:
 
 jobs:
   detect:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     outputs:
@@ -87,7 +87,7 @@ jobs:
         rid: [osx-x64, osx-arm64]
         include:
           - rid: osx-x64
-            runner: macos-14
+            runner: macos-15-intel
           - rid: osx-arm64
             runner: macos-15
     runs-on: ${{ matrix.runner }}
@@ -99,10 +99,10 @@ jobs:
       WORK_DIR: ${{ github.workspace }}/External/AvaloniaNative/.work
       OUTPUT_DIR: ${{ github.workspace }}/External/AvaloniaNative/${{ matrix.rid }}/native
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Setup .NET for Avalonia header generation
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           dotnet-version: |
             8.0.x
@@ -115,7 +115,7 @@ jobs:
         run: bash scripts/build-macos-font-preinit.sh
 
       - name: Upload static AvaloniaNative
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: native-avalonia-${{ matrix.version.avalonia_version }}-${{ matrix.rid }}
           path: |
@@ -131,19 +131,19 @@ jobs:
     strategy:
       matrix:
         version: ${{ fromJSON(needs.detect.outputs.versions) }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           dotnet-version: "10.0.x"
 
       - name: Download static AvaloniaNative archives
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           pattern: native-avalonia-${{ matrix.version.avalonia_version }}-*
           path: artifacts/native
@@ -168,7 +168,7 @@ jobs:
             /p:Version=${{ matrix.version.package_version }}
 
       - name: Upload NuGet package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: staticlink-avalonia-native-${{ matrix.version.package_version }}
           path: artifacts/nuget/*.nupkg
@@ -186,22 +186,22 @@ jobs:
         rid: [osx-x64, osx-arm64]
         include:
           - rid: osx-x64
-            runner: macos-14
+            runner: macos-15-intel
           - rid: osx-arm64
             runner: macos-15
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           dotnet-version: "10.0.x"
 
       - name: Download NuGet package
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: staticlink-avalonia-native-${{ matrix.version.package_version }}
           path: artifacts/nuget
@@ -266,13 +266,13 @@ jobs:
     strategy:
       matrix:
         version: ${{ fromJSON(needs.detect.outputs.versions) }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       id-token: write
     steps:
       - name: Download NuGet package
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: staticlink-avalonia-native-${{ matrix.version.package_version }}
           path: artifacts/nuget
